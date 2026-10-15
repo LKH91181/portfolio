@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>你的名字 | 设计师作品集</title>
+<style>
+  /* 基础重置与变量 */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #fafafa;
+    --text: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #2d2d2d;
+    --card: #ffffff;
+    --border: #e5e5e5;
+    --radius: 12px;
+    --max-width: 1100px;
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; text-decoration: none; }
+
+  /* 导航栏 */
+  header {
+    position: sticky;
+    top: 0;
+    background: rgba(250, 250, 250, 0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+  }
+  nav {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 18px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .logo { font-weight: 700; font-size: 1.1rem; letter-spacing: -0.02em; }
+  .nav-links { display: flex; gap: 28px; font-size: 0.95rem; color: var(--muted); }
+  .nav-links a:hover { color: var(--text); }
+
+  /* 通用容器与标题 */
+  .container { max-width: var(--max-width); margin: 0 auto; padding: 0 24px; }
+  section { padding: 80px 0; }
+  .section-title {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 32px;
+  }
+
+  /* Hero 首屏 */
+  .hero { padding: 100px 0 60px; }
+  .hero h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-bottom: 20px;
+  }
+  .hero p {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 600px;
+    margin-bottom: 32px;
+  }
+  .hero-links { display: flex; gap: 16px; flex-wrap: wrap; }
+  .btn {
+    display: inline-block;
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-secondary { border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover { border-color: var(--text); }
+
+  /* 作品网格 */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 28px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.08);
+  }
+  .card-img {
+    aspect-ratio: 4 / 3;
+    background: #eee;
+    overflow: hidden;
+  }
+  .card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.4s ease;
+  }
+  .card:hover .card-img img { transform: scale(1.04); }
+  .card-body { padding: 20px; }
+  .card-body h3 { font-size: 1.05rem; margin-bottom: 6px; }
+  .card-body p { font-size: 0.9rem; color: var(--muted); }
+  .tag {
+    display: inline-block;
+    font-size: 0.75rem;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 2px 10px;
+    margin-top: 12px;
+  }
+
+  /* 关于我 */
+  .about {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 48px;
+    align-items: start;
+  }
+  .about-photo {
+    aspect-ratio: 1;
+    border-radius: var(--radius);
+    background: #eee;
+    overflow: hidden;
+  }
+  .about-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .about-text p { margin-bottom: 16px; color: var(--muted); }
+  .skills { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+  .skill {
+    font-size: 0.85rem;
+    padding: 6px 14px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+  }
+
+  /* 联系 */
+  .contact { text-align: center; }
+  .contact h2 { font-size: 2rem; margin-bottom: 16px; letter-spacing: -0.02em; }
+  .contact p { color: var(--muted); margin-bottom: 28px; }
+  .contact-links { display: flex; justify-content: center; gap: 24px; flex-wrap: wrap; }
+  .contact-links a {
+    font-size: 0.95rem;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--border);
+  }
+  .contact-links a:hover { border-color: var(--text); }
+
+  /* 页脚 */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 0;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+
+  /* 响应式 */
+  @media (max-width: 700px) {
+    .nav-links { gap: 18px; font-size: 0.9rem; }
+    section { padding: 56px 0; }
+    .hero { padding: 64px 0 40px; }
+    .about { grid-template-columns: 1fr; gap: 32px; }
+    .about-photo { max-width: 220px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav>
+    <div class="logo">你的名字</div>
+    <div class="nav-links">
+      <a href="#work">作品</a>
+      <a href="#about">关于</a>
+      <a href="#contact">联系</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+
+  <!-- 首屏 -->
+  <section class="hero container">
+    <h1>你好，我是你的名字。<br>一名专注于视觉与体验的设计师。</h1>
+    <p>我帮助品牌和产品打造清晰、有温度的视觉语言。以下是我近期的一些作品。</p>
+    <div class="hero-links">
+      <a href="#work" class="btn btn-primary">查看作品</a>
+      <a href="#contact" class="btn btn-secondary">联系我</a>
+    </div>
+  </section>
+
+  <!-- 作品 -->
+  <section id="work" class="container">
+    <div class="section-title">精选作品</div>
+    <div class="grid">
+
+      <article class="card">
+        <div class="card-img">
+          <!-- 替换为你的图片链接 -->
+          <img src="test.jpg">
+        </div>
+        <div class="card-body">
+          <h3>项目名称一</h3>
+          <p>一句话描述这个项目，比如品牌视觉重塑或 App 界面设计。</p>
+          <span class="tag">品牌设计</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-img">
+          <img src="https://via.placeholder.com/800x600/eeeeee/999999?text=作品+02" alt="项目二">
+        </div>
+        <div class="card-body">
+          <h3>项目名称二</h3>
+          <p>一句话描述这个项目，突出你的角色和成果。</p>
+          <span class="tag">UI/UX</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-img">
+          <img src="https://via.placeholder.com/800x600/eeeeee/999999?text=作品+03" alt="项目三">
+        </div>
+        <div class="card-body">
+          <h3>项目名称三</h3>
+          <p>一句话描述这个项目，让访客快速了解亮点。</p>
+          <span class="tag">包装设计</span>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-img">
+          <img src="https://via.placeholder.com/800x600/eeeeee/999999?text=作品+04" alt="项目四">
+        </div>
+        <div class="card-body">
+          <h3>项目名称四</h3>
+          <p>一句话描述这个项目，保持简洁有力。</p>
+          <span class="tag">动效</span>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <!-- 关于 -->
+  <section id="about" class="container">
+    <div class="section-title">关于我</div>
+    <div class="about">
+      <div class="about-photo">
+        <!-- 替换为你的个人照片 -->
+        <img src="https://via.placeholder.com/600x600/eeeeee/999999?text=你的照片" alt="你的名字">
+      </div>
+      <div class="about-text">
+        <p>我是一名位于城市的设计师，拥有 X 年视觉与体验设计经验。我关注设计如何解决真实问题，也相信好的设计应该简洁、诚实、有细节。</p>
+        <p>过去我曾与不同规模的团队合作，从早期创业公司到成熟品牌，负责从概念到落地的完整设计流程。</p>
+        <div class="skills">
+          <span class="skill">视觉设计</span>
+          <span class="skill">UI/UX</span>
+          <span class="skill">品牌识别</span>
+          <span class="skill">Figma</span>
+          <span class="skill">动效</span>
+          <span class="skill">用户研究</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 联系 -->
+  <section id="contact" class="container contact">
+    <h2>让我们一起做点东西</h2>
+    <p>如果你有项目想聊，或者只是想打个招呼，欢迎随时联系。</p>
+    <div class="contact-links">
+      <a href="mailto:your@email.com">your@email.com</a>
+      <a href="https://dribbble.com/yourname" target="_blank">Dribbble</a>
+      <a href="https://www.behance.net/yourname" target="_blank">Behance</a>
+      <a href="https://www.linkedin.com/in/yourname" target="_blank">LinkedIn</a>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="container">© 2025 你的名字。保留所有权利。</div>
+</footer>
+
+</body>
+</html>

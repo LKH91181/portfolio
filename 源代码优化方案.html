@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OPService 源代码优化修复方案</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7785;
+    --line: #d9e2ec;
+    --accent: #0b5cad;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --high: #c0392b;
+    --medium: #d68910;
+    --low: #2471a3;
+    --ok: #1e8449;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    line-height: 1.75; font-size: 15px;
+  }
+  .page {
+    max-width: 1080px; margin: 24px auto 60px; padding: 40px 48px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(31, 41, 51, .06);
+  }
+  h1 {
+    font-size: 26px; margin: 0 0 20px; padding-bottom: 14px;
+    border-bottom: 3px solid var(--accent); color: var(--accent);
+    letter-spacing: 1px;
+  }
+  h2 {
+    font-size: 20px; margin: 36px 0 14px; padding: 8px 14px;
+    background: linear-gradient(90deg, #eaf2fb, transparent);
+    border-left: 5px solid var(--accent); border-radius: 3px;
+  }
+  h3 { font-size: 17px; margin: 26px 0 10px; color: #10456e; }
+  h4 { font-size: 15.5px; margin: 20px 0 8px; color: var(--ink); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 26px; }
+  li { margin: 4px 0; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #eef3f8; color: #10456e; font-weight: 600; white-space: nowrap; }
+  tr:nth-child(even) td { background: #fafcfe; }
+  code {
+    font-family: Consolas, "Courier New", monospace; font-size: 12.5px;
+    background: #f0f3f6; border: 1px solid var(--line); border-radius: 3px;
+    padding: 1px 5px; color: #922b3e; word-break: break-all;
+  }
+  strong { color: #10456e; }
+  em { color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 1px 10px; border-radius: 12px;
+    font-size: 12.5px; font-weight: 600; color: #fff; vertical-align: 1px;
+  }
+  .badge-high { background: var(--high); }
+  .badge-medium { background: var(--medium); }
+  .badge-low { background: var(--low); }
+  @media print {
+    body { background: #fff; }
+    .page { border: none; box-shadow: none; margin: 0; max-width: none; padding: 0; }
+    h2 { background: none; }
+  }
+  pre {
+    background: #1f2933; color: #e6edf3; padding: 14px 16px; border-radius: 6px;
+    overflow-x: auto; font-size: 12.5px; line-height: 1.6;
+  }
+  pre code { background: none; border: none; color: inherit; padding: 0; }
+  blockquote { border-left: 4px solid var(--line); margin: 10px 0; padding: 4px 16px; color: var(--muted); }
+</style>
+</head>
+<body>
+<main class="page">
+<h1>OPService 源代码优化修复方案（基于 20 条审查发现 + 三轮部署实测验证）</h1>
+<blockquote>
+<p>生成：2026-09-29 | 依据：workflow/review_notes.json（f_001~f_020）、workflow/analysis_verdict.json（部署验证状态）、ComponentSystem/OPService 源码核实</p>
+</blockquote>
+<h2>0. 总体结论与修复接入点确认</h2>
+<p><strong>技术栈事实</strong>（决定所有修复的接入方式）：</p>
+<ul>
+<li><code>ComponentSystem/OPService/OPService.csproj:4</code>：<code>net6.0</code>，无鉴权包、无 FluentValidation，仅 Swashbuckle 6.8.1 / Nacos / My.Extensions.Localization.Json。<strong>修复不得引入重量级新依赖</strong>（鉴权用中间件自研，校验用 ActionFilter + 轻量 Helper）。</li>
+<li><code>ComponentSystem/OPService/Program.cs:46</code>：最小托管模型（<code>WebApplication</code>），无 Startup 类。</li>
+<li>中间件管道（<code>Program.cs:186-215</code>）：<code>UseRequestLocalization → UseCors → UseSwagger/UseSwaggerUI → MapControllers</code>。<strong>挂载点明确</strong>：</li>
+<li>鉴权中间件插入位置：<code>Program.cs:208</code>（<code>UseSwagger()</code> 之前、<code>UseCors</code> 之后）——<code>app.UseMiddleware&lt;ApiKeyAuthMiddleware&gt;()</code>；</li>
+<li>全局异常中间件插入位置：<code>Program.cs:185</code> 之后立即挂 <code>app.UseMiddleware&lt;GlobalExceptionMiddleware&gt;()</code>（必须是第一个中间件，才能兜住所有下游异常）；</li>
+<li>全局 ActionFilter：<code>Program.cs:68</code> 的 <code>builder.Services.AddControllers()</code> 处追加 <code>.AddMvcOptions(o =&gt; o.Filters.Add&lt;...&gt;())</code>。</li>
+<li>现状确认：<code>ActionFilter|IExceptionFilter|UseAuthentication|UseAuthorization|AddAuthentication</code> 在 OPService 下 <strong>0 命中</strong>——没有任何既有挂点，全部需要新建。</li>
+<li>响应模型 <code>EL.Basic.Core/Core/Object/Message.cs:46-71</code>：<code>Response&lt;T&gt;{Error,Content,Message,StackTrace,RpcId}</code>，<code>StackTrace</code> 字段存在于 HTTP 响应模型中（需脱敏处理）。</li>
+<li>控制器形态混杂：<code>CommandController/IschedController/CopilotController/DSController/MDIController</code> 是<strong>普通类</strong>（非 ControllerBase），因此过滤器方案优先于基类方案。</li>
+<li>业务逻辑大量放在与控制器同文件的静态 <code>XxxSystem</code> 类中，业务异常统一 <code>catch(Exception ex){ Message = ex.Message }</code> 模式（约 30+ 处），这是 f_008 的结构性根源。</li>
+</ul>
+<hr>
+<h2>1. 共性基建方案（一次解决一类问题）</h2>
+<h3>1a. 鉴权体系设计</h3>
+<p><strong>三条路线评估</strong>（场景：内网、HTTP 明文 <code>http://*:10002</code>、多客户端类型：门口屏/术间屏/导播/管控中心、WPF 客户端已持有 clientId）：</p>
+<table>
+<thead>
+<tr>
+<th>路线</th>
+<th>优点</th>
+<th>缺点</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>JWT</td>
+<td>标准化、无状态</td>
+<td>服务是 HTTP 明文，JWT 载荷可被嗅探重放；所有客户端都要改造 token 获取/刷新；需引入 JwtBearer 包</td>
+<td>不推荐（内网明文下收益低、改造面最大）</td>
+</tr>
+<tr>
+<td>API Key（每客户端类型固定密钥）</td>
+<td>改造小、服务端一个中间件搞定</td>
+<td>密钥分发/轮换需运维配合；无法表达"用户级"身份</td>
+<td><strong>推荐，作为第一优先落地</strong></td>
+</tr>
+<tr>
+<td>现有 clientId 强化</td>
+<td>零客户端改造</td>
+<td>clientId 明文出现在 query、无签名、可枚举重放（f_011 已证登录无锁定）</td>
+<td>不够，但作为<strong>兼容过渡层保留</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>推荐：API Key 为主 + clientId 强化兜底的渐进式方案</strong>，利用现有 <code>ClientInfo.ExpiryDate</code>（<code>ClientManagerComponent.cs:76</code> 已写死 <code>DateTime.Now.AddDays(1)</code>，系统本就有会话过期概念，只是从未校验）。</p>
+<p><strong>新增文件</strong>（新目录 <code>ComponentSystem/OPService/Security/</code>）：</p>
+<pre><code>OPService/Security/
+  ApiAuthOptions.cs          // 配置模型
+  ApiKeyAuthMiddleware.cs    // 主鉴权中间件
+  ClientAuthAttribute.cs     // ActionFilter：clientId 有效性 + 客户端类型校验（逐端点标注用）
+  LoginThrottleService.cs    // 登录失败锁定（f_011）
+</code></pre>
+<p><strong>配置节</strong>（appsettings.json 新增，配合 1c 脱敏策略在响应中不可见）：</p>
+<pre><code class="language-json">&quot;ApiAuth&quot;: {
+  &quot;Enabled&quot;: true,
+  &quot;Mode&quot;: &quot;GracePeriod&quot;,
+  &quot;GracePeriodEnd&quot;: &quot;2026-12-31&quot;,
+  &quot;StaticKeys&quot;: [
+    { &quot;Key&quot;: &quot;&lt;由运维生成&gt;&quot;, &quot;ClientType&quot;: &quot;IschedSystem&quot;,   &quot;Scopes&quot;: [&quot;publish&quot;] },
+    { &quot;Key&quot;: &quot;&lt;...&gt;&quot;,       &quot;ClientType&quot;: &quot;WaitAreaScreen&quot;, &quot;Scopes&quot;: [&quot;waitarea:read&quot;] }
+  ],
+  &quot;AllowAnonymousPaths&quot;: [ &quot;/api/ds/login&quot;, &quot;/api/dscm_fw/login&quot;, &quot;/api/dc/Test&quot; ]
+}
+</code></pre>
+<p><strong>ApiKeyAuthMiddleware.cs 骨架</strong>：</p>
+<pre><code class="language-csharp">public class ApiKeyAuthMiddleware
+{
+    public async Task InvokeAsync(HttpContext ctx)
+    {
+        var path = ctx.Request.Path.Value?.ToLowerInvariant() ?? &quot;&quot;;
+        if (_options.AllowAnonymousPaths.Contains(path)) { await _next(ctx); return; }
+
+        var key = ctx.Request.Headers[&quot;X-Api-Key&quot;].FirstOrDefault();
+        if (string.IsNullOrEmpty(key))
+        {
+            // GracePeriod 兼容层：老客户端不带 Key 时，回退校验 query 中的 clientId
+            if (_options.Mode == ApiAuthMode.GracePeriod
+                &amp;&amp; ctx.Request.Query.TryGetValue(&quot;clientId&quot;, out var clientId)
+                &amp;&amp; IsValidClient(clientId))   // ClientManagerComponent.Get + ExpiryDate &gt; Now
+            { ctx.Items[&quot;AuthSource&quot;] = &quot;legacy-clientId&quot;; await _next(ctx); return; }
+
+            await WriteError(ctx, 401, 401000, &quot;缺少有效的 API Key 或 clientId&quot;);
+            return;
+        }
+        var identity = _options.ResolveKey(key);
+        if (identity == null) { await WriteError(ctx, 401, 401001, &quot;API Key 无效&quot;); return; }
+        ctx.Items[&quot;AuthIdentity&quot;] = identity;
+        await _next(ctx);
+    }
+}
+</code></pre>
+<p><strong>挂载</strong>：<code>Program.cs:208</code> 前插入一行 <code>app.UseMiddleware&lt;ApiKeyAuthMiddleware&gt;();</code>（WebSocket/Socket 初始化不受影响）。</p>
+<p><strong>登录接口改造</strong>（<code>DSController.cs:81-85</code>、<code>DoorScreenManagerFWController.cs:42-46</code>）：</p>
+<ul>
+<li>阶段1：保留 GET 兼容，成功后在返回体中追加 <code>apiKey</code> 字段（替代裸 clientId 作为新凭证）</li>
+<li>阶段2（P2）：新增 <code>[HttpPost("login")]</code>，接收 <code>{userName, password}</code> JSON body，GET 版本标记 <code>[Obsolete]</code> 并在 GracePeriodEnd 后返回 410</li>
+<li>HttpLogin 成功时改为：<code>client.ApiKey = Guid.NewGuid() + "-" + 随机熵</code>；<code>client.ExpiryDate = DateTime.Now.AddDays(1)</code>（沿用现有字段）</li>
+</ul>
+<p><strong>clientId 机制兼容过渡</strong>（回归风险核心）：老客户端只传 <code>clientId</code> 不带 Key，在 <code>GracePeriod</code> 模式下放行但要求 clientId 在 <code>ClientManagerComponent.clients</code> 中<strong>存在且未过期</strong>——对老客户端零改动，同时封死 f_018/f_019 类"伪造 clientId"攻击面。<code>Enforced</code> 切换前，通过 <code>getAgents</code>/日志统计 legacy 来源调用量，降为零后切换。</p>
+<h3>1b. 全局异常处理：统一 Response 包装，禁止 ex.Message/StackTrace 直出</h3>
+<p><strong>新增</strong> <code>OPService/Filters/GlobalExceptionMiddleware.cs</code> + <code>OPService/Filters/ResponseFactory.cs</code>：</p>
+<pre><code class="language-csharp">public class GlobalExceptionMiddleware
+{
+    public async Task InvokeAsync(HttpContext ctx)
+    {
+        try { await _next(ctx); }
+        catch (Exception ex)
+        {
+            Log.Error(ex);   // 内部日志落文件（现有 Log4net，Program.cs:220）
+            await WriteResponse(ctx, ResponseFactory.FromException(ex));
+        }
+    }
+}
+
+public static class ResponseFactory
+{
+    public static object FromException(Exception ex) =&gt; ex is SysMsgException se
+        ? new { error = se.ErrorCode, content = (object?)null, message = se.Message }  // 业务消息保留
+        : new { error = 300000,   content = (object?)null, message = &quot;服务器内部错误，请联系管理员&quot; };
+    // 关键：普通 Exception 一律替换为固定文案，ex.Message/ex.StackTrace 只进日志不进响应
+}
+</code></pre>
+<p><strong>存量 catch 块收敛</strong>（f_008 根因，30+ 处）：<code>catch(Exception ex){ Message = ex.Message }</code> 统一替换为 <code>catch(Exception ex){ Log.Error(ex); return ResponseFactory.FromException&lt;Response&lt;T&gt;&gt;(ex); }</code>。分两步：</p>
+<ol>
+<li>P0 先改<strong>已知会泄漏</strong>的端点：<code>DSController.cs:601-609</code>（Login）、<code>DoorScreenManagerFWController.cs:149-157</code>、<code>CommandController.cs</code> 全部 catch（getRoomdata:221、GetClients:268、GetAgents:302、ReloadRoom:329、GetAppsettings:388、SetAppsetting:404）、<code>DoctorStationController.cs</code> 全部 catch。</li>
+<li>P1 加程序集反射扫描单测，断言响应模型不出现 StackTrace 赋值，防新增回归。</li>
+</ol>
+<p><strong>StackTrace 字段处置</strong>：<code>Message.cs</code> 保留字段（Socket 协议可能使用），HTTP 层由中间件兜底置 null + 代码规约禁止赋值。</p>
+<p><strong>SysMsgException 通道</strong>：<code>DSController.cs:503-511</code>（ScanCode 双 catch）已是正确范本，作为全仓库改造模板。</p>
+<h3>1c. 敏感配置脱敏 Provider</h3>
+<p><strong>新增</strong> <code>OPService/Security/ConfigMaskingProvider.cs</code>：</p>
+<pre><code class="language-csharp">public static class ConfigMaskingProvider
+{
+    private static readonly Regex SensitiveKey =
+        new(@&quot;(passw(or)?d|passwd|pwd|secret|token|apikey|api_key|password|credential|connectionstring)&quot;,
+            RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    public static object Mask(IConfiguration section)   // 递归遍历，命中黑名单 → &quot;******&quot;
+    public static object MaskObject(object appsetting)  // 深度遍历 JToken
+}
+</code></pre>
+<p><strong>接入点（三处，均已三轮实证泄漏）</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>端点</th>
+<th>源码位置</th>
+<th>改造</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/api/cmd/getAppsettings</code></td>
+<td><code>CommandController.cs:372-390</code></td>
+<td>删除 <code>File.ReadAllText</code> 原文返回（378-382 行）；经 <code>Mask</code> 输出</td>
+</tr>
+<tr>
+<td><code>/api/doctorstation/loadServerConfig</code></td>
+<td><code>DoctorStationController.cs:825-848</code>（836 行）</td>
+<td><code>MaskObject</code> 包装</td>
+</tr>
+<tr>
+<td><code>/api/doctorstation/getAccountData</code></td>
+<td><code>DoctorStationController.cs:1156-1182</code>（1181 行）</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<p><strong>运维配套（非代码，必须列入 P0 检查单）</strong>：轮换已泄漏凭证 <code>3DbKziKi</code>（SIP）、<code>admin</code>（SetItemPage）、<code>admin123456</code>（Minio）、<code>000000</code>（物料接口）——脱敏只堵新泄漏，旧凭证必须换。</p>
+<h3>1d. 输入校验规范（JSON-in-query / 枚举 / 分页统一模式）</h3>
+<p>不引入 FluentValidation，新增 <code>OPService/Validation/</code>：</p>
+<pre><code class="language-csharp">// JsonQuery.cs —— 统一 JSON-in-query 参数解析（f_010 全家桶）
+public static class JsonQuery
+{
+    public static (List&lt;string&gt;? codes, string? errMsg) ParseStringList(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return (null, &quot;参数不能为空&quot;);
+        try {
+            var codes = JsonHelper.FromJson&lt;List&lt;string&gt;&gt;(json);
+            if (codes == null || codes.Count == 0) return (null, &quot;参数为空数组&quot;);
+            return (codes, null);
+        } catch { return (null, &quot;传入参数异常！&quot;); }   // 语义对齐 CopilotController.cs:81
+    }
+}
+
+// EnumCheck.cs —— 枚举强转防线（f_006/f_009）
+public static class EnumCheck
+{
+    public static T Validate&lt;T&gt;(int value, string paramName) where T : struct, Enum
+        =&gt; Enum.IsDefined(typeof(T), value)
+            ? (T)Enum.ToObject(typeof(T), value)
+            : throw new SysMsgException($&quot;{paramName} 取值非法: {value}&quot;);
+}
+
+// PageQuery.cs —— 分页钳制（f_015）
+public static class PageQuery
+{
+    public static (int page, int size) Normalize(int page, int size, int maxSize = 200)
+        =&gt; (Math.Max(1, page), Math.Clamp(size, 1, maxSize));
+}
+</code></pre>
+<p><strong>空数组语义标准</strong>（写入开发规约）：查询类接口空选集 = <code>error=0 + 空 content</code>；写/操作类接口空选集 = <code>error=300000 + "参数为空"</code>。两者不可与"资源不存在"共用文案。</p>
+<h3>1e. 路由与文档治理（api.yaml 同步）</h3>
+<ul>
+<li>项目已开 Swagger + XML 注释（<code>Program.cs:102-123</code>）。新增 <code>tools/ApiRouteDump</code>（或单测）：反射枚举所有 Controller 的 <code>[Route]+[HttpGet/HttpPost]</code> 生成 <code>route_snapshot.json</code>，与 api.yaml paths 做差集，CI 校验——直接解决 f_004 与"版本 B 反向多出 reloadRoomData"的双向漂移。</li>
+<li>本仓库立即行动：以 24 个实际 Controller 为准重建 api.yaml；文档中不存在的端点移入"附录-未实现"节。</li>
+</ul>
+<hr>
+<h2>2. 逐条修复设计（f_001 ~ f_020）</h2>
+<blockquote>
+<p>每条含：验证状态 / 根因 / 修复设计 / 回归风险 / 验收。共性方案引用为【鉴权】【异常】【脱敏】【校验】【治理】。</p>
+</blockquote>
+<h3>f_001 setAppsetting 无鉴权 GET 可改写任意配置并回显全量配置 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>验证状态</strong>：受限证实（tc_154 探针证实无法创建新键，仅能覆盖既有键值；无鉴权可达两轮证实）。</li>
+<li><strong>根因</strong>：<code>CommandController.cs:126-130</code> 路由 <code>[HttpGet("setAppsetting")]</code>；<code>392-406</code> 行 <code>GetSection(path).Value = value</code> 后 <code>Reload()</code>，path/value 任意、无鉴权；399 行 <code>return new Response&lt;dynamic&gt;(GetAppsettings())</code> 二次泄漏全量配置。</li>
+<li><strong>修复设计</strong>：① 挂【鉴权】+ <code>Scopes=["config:write"]</code>（仅运维 Key）；② 增加<strong>可写路径白名单</strong>（<code>ApiAuth:WritableConfigPaths</code>，默认空=全部拒绝）；③ 返回值改为 <code>new { path, applied = true }</code>，<strong>删除 GetAppsettings() 回显</strong>；④ P2 路由改 POST+body；⑤ 写审计：<code>config_audit.log</code> 记录 key/旧值哈希/调用方身份/时间。</li>
+<li><strong>回归风险</strong>：既有运维工具会被 401 拦截——需为工具配置 StaticKey；白名单默认空可能阻断既有自动化，上线前梳理实际写入路径。</li>
+<li><strong>验收</strong>：tc_154~156 探针在新代码上应返回 401 或白名单拒绝；tc_059/060 的安全语义由 runner 拦截升级为服务端自身拒绝。</li>
+</ul>
+<h3>f_002 配置类端点泄漏完整 appsettings 原文 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>验证状态</strong>：跨版本确认（r0+r1+r2 三轮，同一批明文凭证）。</li>
+<li><strong>根因</strong>：<code>CommandController.cs:372-390</code>、<code>DoctorStationController.cs:825-848</code>、<code>DoctorStationController.cs:1156-1182</code>。</li>
+<li><strong>修复设计</strong>：接【脱敏】三接入点 + 前挂【鉴权】（<code>config:read</code> scope）。防御性：<code>DSSystem.LoadConfig</code>（<code>DSController.cs:313-346</code>）的 ServerConfig 同样过 <code>MaskObject</code>。</li>
+<li><strong>回归风险</strong>：客户端若依赖 loadServerConfig 下发口令连接 SIP/Minio——需确认；若是，P2 改为服务端代理连接而非下发口令，过渡期对已知客户端放行原始值但日志告警。</li>
+<li><strong>验收</strong>：tc_096/097/099 重跑：正则扫描 <code>password|secret|Passworld|SecretKey</code> 不得出现明文值；新增断言：响应不含 <code>appsettingJson</code> 字段。</li>
+</ul>
+<h3>f_003 写操作无鉴权 / clientId 不校验 / publishMessage 伪造广播 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>验证状态</strong>：跨版本确认（tc_112 在版本 B 仍以 <code>fromClientId=Isched</code> 广播成功，非法 JSON 亦被接受）。</li>
+<li><strong>根因</strong>：<code>DSController.cs:125-129</code>、<code>DoorScreenManagerFWController.cs:86-90</code> SetScheduleState 不校验 clientId；<code>IschedController.cs:35-73</code> publishMessage 无鉴权、61 行 <code>FromClientId="Isched"</code> 硬编码。</li>
+<li><strong>修复设计</strong>：① 写端点全挂【鉴权】；② publishMessage：<code>FromClientId</code> 从 <code>ctx.Items["AuthIdentity"]</code> 取；<code>jsonDataContent</code> 非空时必须是合法 JSON 否则 <code>SysMsgException</code>；<code>displayTxt</code> 限长 2000；③ SetScheduleState 挂 <code>ClientAuthAttribute</code>（ClientType∈{DoorScreenManager}）。</li>
+<li><strong>回归风险</strong>：接收端若依赖 <code>FromClientId=="Isched"</code> 过滤需同步白名单。</li>
+<li><strong>验收</strong>：tc_112 重跑预期 401；新增：合法 Isched Key → 成功且 fromClientId=Key 绑定身份；非法 JSON → 业务 Error。</li>
+</ul>
+<h3>f_004 大量文档端点在源码中不存在（404）— <span class="badge badge-low">P2</span></h3>
+<ul>
+<li><strong>验证状态</strong>：版本 B 路由快照间接证实（双向漂移：A→B 消失 31 端点，B 又多出 reloadRoomData）。</li>
+<li><strong>修复设计</strong>：接【治理】route_snapshot + CI 差集校验 + api.yaml 重建。</li>
+<li><strong>验收</strong>：404 验证组用例在新文档基线全部消除；CI 差集校验通过。</li>
+</ul>
+<h3>f_005 workstation_context 参数名与文档不一致且 type 无默认值 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>验证状态</strong>：未复现（未专项实测），源码确凿。</li>
+<li><strong>根因</strong>：<code>AiAssistantController.cs:41-56</code> 签名 <code>(string ip, int type)</code>，文档为 <code>targetClientId</code> 且 type 默认 1；type!=1 抛"未实现"。</li>
+<li><strong>修复设计</strong>：签名改 <code>(string? targetClientId, string? ip, int type = 1)</code>，内部 <code>var target = targetClientId ?? ip;</code>（双参数兼容）；type 用 <code>EnumCheck</code>（仅 1 合法，2+ 返回明确"未实现"且 Error 码区别于参数错误）。</li>
+<li><strong>验收</strong>：按文档传 targetClientId → 正常；type 缺省 → 200 而非 400；type=2 → 明确业务 Error。</li>
+</ul>
+<h3>f_006 setScheduleState 对 processStatus 枚举越界假成功 — <span class="badge badge-medium">P1</span>（提前到 P1 首位）</h3>
+<ul>
+<li><strong>验证状态</strong>：未复现（写探针属环境红线未实测），源码确凿，与 f_001 同为"假成功"模式。</li>
+<li><strong>根因</strong>：<code>DSController.cs:807-826</code> <code>switch((ProcessStatus)processStatus)</code> <code>default: break;</code> 后 852 行 <code>return Response(true)</code>；<code>DoorScreenManagerFWController.cs:377-396,457</code> 同构；827 行 <code>Task.Run(UpdateSyncLog)</code> 仍执行。</li>
+<li><strong>修复设计</strong>：switch 前加 <code>var status = EnumCheck.Validate&lt;ProcessStatus&gt;(processStatus, nameof(processStatus));</code>（越界抛 SysMsgException），switch 用 <code>status</code>。两个文件同步改。</li>
+<li><strong>回归风险</strong>：依赖"返回 true"的客户端行为从假成功变 Error——这正是要修复的缺陷，发布说明标注。</li>
+<li><strong>验收</strong>：processStatus=99/-1/65535 → <code>error=300000</code>"processStatus 取值非法"；0-5 逐一流转 + DB 断言。</li>
+</ul>
+<h3>f_007 scheduleId 住院号模糊匹配取排序第一条 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>验证状态</strong>：未复现（需多台同住院号数据），源码确凿。</li>
+<li><strong>根因</strong>：<code>DSController.cs:1131-1271</code> <code>LoadSchedule</code> 匹配条件 <code>x.inpatient_no == inpatient_no || ScheduleId+"" == inpatient_no</code>（1140 行），1269 行 <code>OrderBy(ProcessStatus).ThenBy(operation_date).FirstOrDefault()</code> 静默取一台；<code>DoorScreenManagerFWController.cs:665-805</code> 同构。</li>
+<li><strong>修复设计</strong>：① 先 <code>Guid.TryParse</code> 精确匹配；② 非 GUID 按住院号匹配且 <code>temps.Count &gt; 1</code> 时抛 <code>SysMsgException("该住院号存在多台手术，请使用精确的 scheduleId")</code>（配置开关 <code>Schedule:FuzzyMatchAllowMulti=false</code> 可回滚旧行为）。</li>
+<li><strong>验收</strong>：测试库构造同住院号两台 → 传住院号返回 Error；传精确 GUID → 正常流转。</li>
+</ul>
+<h3>f_008 业务错误恒 200 + ex.Message 直出可泄漏内部细节 — <span class="badge badge-high">P0</span>（异常收敛）+ P1（端点修补）</h3>
+<ul>
+<li><strong>验证状态</strong>：environment_limited（tc_161/162 目标路由 404），但 tc_158 旁证实"Object reference..."直出仍存在。</li>
+<li><strong>根因</strong>：<code>Message.cs:46-71</code>；<code>DSController.cs:601-609</code> Login catch 返回 ex.Message；<code>DoorScreenManagerFWController.cs:167</code> 取 client 后 176 行直接 <code>client.SystemFuncs</code> → NRE 透出。</li>
+<li><strong>修复设计</strong>：接【异常】两步收敛；专项修补 167 行后加 <code>if (client == null) throw new SysMsgException("未找到客户端");</code>；<code>/api/dc/get_results</code> 同点修补。</li>
+<li><strong>验收</strong>：tc_158 重写为"message 不含 <code>Object reference|at .*\.cs|Exception</code> 正则"→ 通过；tc_161/162 待路由恢复补验。</li>
+</ul>
+<h3>f_009 cameraMoveEnum 强转无范围校验 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>验证状态</strong>：未复现（设备层副作用未实测），源码确凿。</li>
+<li><strong>根因</strong>：<code>DoctorStationController.cs:307-311</code> 直接强转透传设备层；同文件 1605-1650/1694-1730/1739-1768 已有正确校验范本，仅此端点缺失。</li>
+<li><strong>修复设计</strong>：内部 <code>EnumCheck.Validate&lt;CameraMoveEnum&gt;(...)</code>；<code>MatrixControlCenterController</code>、<code>OperTeachController</code> 同名端点同步。</li>
+<li><strong>验收</strong>：cameraMoveEnum=-1/9 → "取值非法"；非数字 → 400；0-8 正常下发。</li>
+</ul>
+<h3>f_010 JSON 字符串参数反序列化行为不一致 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>验证状态</strong>：跨版本持续（tc_083 空数组语义、tc_010 裸数组均为 r2 实证）。</li>
+<li><strong>根因</strong>：<code>JsonHelper.cs:27-34</code> null→default(T)、非法 JSON 抛原始异常；<code>CommandController.cs:309-332</code> ReloadRoom 对 null foreach → NRE 被吞；<code>CopilotController.cs:74-83</code> 为正确范本；<code>DSController.cs:275-284</code> 又一套逻辑。</li>
+<li><strong>修复设计</strong>：接【校验】<code>JsonQuery</code> 统一四态：null/空串→"参数不能为空"；非法 JSON→"传入参数异常！"；<code>"[]"</code>→按接口类型（查询=空成功，写=参数错误）；结果判 null。改造 ReloadRoom 与 GetRoomData（158-171）。附带：GetRoomData <code>codes.Count==0</code> → <code>error=0 + 空列表</code>，与"术间不存在"分离。</li>
+<li><strong>验收</strong>：h_005/h_016 矩阵重跑全绿；copilot 混合编码返回 invalidCodes（配合 f_016）。</li>
+</ul>
+<h3>f_011 登录/验证密码走 GET query、无失败锁定 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>验证状态</strong>：密码走 GET 源码确凿（tc_100 证实错误口令路径）；暴力枚举未实测。</li>
+<li><strong>根因</strong>：<code>DSController.cs:81-85,575-610</code>、<code>DoorScreenManagerFWController.cs:42-46,123-158</code>、<code>NurseStationController.cs:199,976-993</code>；<code>ClientManagerComponent.cs:68-79</code> HttpLogin 无锁定/限流。</li>
+<li><strong>修复设计</strong>：① <code>LoginThrottleService</code>：<code>accountId+来源IP</code> 双键滑动窗口，5 次/10 分钟锁定，锁定 Error 码与"用户名或密码错误"区分防账号枚举；统一错误文案防用户名探测；② 新增 <code>[HttpPost("login")]</code> DTO 版本（纠正 <code>passworld</code>→<code>password</code>），GET 过渡期保留 + <code>Warning: deprecated</code>；③ 访问日志对 login 的 password/passworld 脱敏为 <code>***</code>。</li>
+<li><strong>回归风险</strong>：同 NAT 多屏可能误伤——IP+账号双键缓解；老客户端 GET 在 GracePeriod 内不受影响。</li>
+<li><strong>验收</strong>：tc_100 保持；新增：连续 6 次失败 → 锁定 Error；锁定期间正确密码亦拒；日志无明文密码。</li>
+</ul>
+<h3>f_012 saveVideosRecord 更新分支不落库仍返回成功 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>验证状态</strong>：未复现 DB 侧，源码确凿。</li>
+<li><strong>根因</strong>：<code>DoctorStationController.cs:712-774</code>：743-748 仅 <code>record_id==Guid.Empty</code> 才写库，更新分支直接返回（763 行）——假成功；720 行 <code>RecordFiles.Clear()</code> 缺字段时 NRE。</li>
+<li><strong>修复设计</strong>：743 行改 <code>if (record_id == Guid.Empty) tb.Add else tb.Update</code> + 统一 SaveChanges；719 行后加 null 判断再访问 RecordFiles。</li>
+<li><strong>验收</strong>：record_id=已有 GUID → DB update_time 变化且返回体与库一致；<code>videosRecordJson="{}"</code> → 明确业务 Error。</li>
+</ul>
+<h3>f_013 sendFamilyCallMessage DB 写失败被吞仍广播 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>DoctorStationController.cs:1997-2010</code> catch 吞掉 SaveChanges 异常，2011-2019 继续广播并 return true。</li>
+<li><strong>修复设计</strong>：catch 改 <code>throw;</code> 或显式返回 <code>Error="呼叫记录保存失败，未广播"</code>；确保先落库成功再广播。</li>
+<li><strong>验收</strong>：故障注入（停库/只读账号）→ 返回 Error 且无广播；正常路径不受影响。</li>
+</ul>
+<h3>f_014 扫码状态机 start_time 为 null 时 NRE — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>DSController.cs:456-463</code> <code>(DateTime.Now - schedule.start_time).Value</code> 未判 null。</li>
+<li><strong>修复设计</strong>：460 行改 <code>var st = schedule.start_time; if (st == null) throw new SysMsgException("该手术未记录开始时间，无法出室扫码");</code>。</li>
+<li><strong>验收</strong>：start_time=null 的手术中排台扫码 → 明确业务消息而非"未知异常"。</li>
+</ul>
+<h3>f_015 monitor 分页参数无上下界校验 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>MonitorController.cs:36-40,109-126</code> 直接透传，clientId 收了不校验。</li>
+<li><strong>修复设计</strong>：接【校验】<code>PageQuery.Normalize</code>；clientId 经 clientManagerComponent 校验。</li>
+<li><strong>验收</strong>：currentPage=-1/0 → 钳制为 1；size=1000000 → ≤200 条。</li>
+</ul>
+<h3>f_016 get_OPRoomStates 恒假条件死代码，未知术间静默忽略 — <span class="badge badge-low">P2</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>CopilotController.cs:91</code> <code>if (roomTemps.Count != roomTemps.Count)</code> 恒 false（应为 roomCodes.Count）；86-90 不存在的编码静默跳过。</li>
+<li><strong>修复设计</strong>：91 行改正为 <code>roomCodes.Count</code>；返回体追加 <code>invalidCodes</code> 字段（增量不破坏既有消费方）。</li>
+<li><strong>验收</strong>：混合编码 → invalidCodes=[无效编码]；全无效 → 空数组 + invalidCodes 全量。</li>
+</ul>
+<h3>f_017 reload 类接口 fire-and-forget，异常吞掉立即返回成功 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>MDIController.cs:74-139</code>：JSON 解析在 <code>Task.Run</code> 内、异常被内层 catch 吞、仍返回 true；<code>CommandController.cs:321-322</code> 每个 code 双重加载。</li>
+<li><strong>修复设计</strong>：① 解析与 interval 读取移到 Task.Run 之前（参数先行校验，与 cmd 版对齐）；② 返回 <code>reloadTaskId</code> + 新增 <code>[HttpGet("reloadstatus")]</code> 查询任务状态（内存 ConcurrentDictionary）；③ 去掉冗余二次 Load。</li>
+<li><strong>验收</strong>：mdi 版 notjson → Error（与 cmd 版一致）；reloadstatus 状态流转 running→done；并发 10 次稳定。</li>
+</ul>
+<h3>f_018 getRecordDataBy 权限校验被注释 + 家属等候区接口无鉴权返回患者排台 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>验证状态</strong>：未复现（用例受登录依赖影响），源码确凿。</li>
+<li><strong>根因</strong>：<code>DoctorStationController.cs:1268-1321</code> 1272-1276 校验整段被注释；<code>DSController.cs:903-981</code>、<code>868-896</code> 无身份参数即返回含患者姓名/住院号的排台。</li>
+<li><strong>修复设计</strong>：① 恢复 1272-1276 校验 + 升级为【鉴权】scope <code>record:read</code>；② 等候区两接口做<strong>PHI 最小化投影</strong>：患者姓名掩码（姓*某）、剔除住院号/PatientInfo 全量，挂 <code>waitarea:read</code> scope。</li>
+<li><strong>回归风险</strong>：等候区大屏渲染全名的逻辑需同步改掩码——隐私合规要求，非可选。</li>
+<li><strong>验收</strong>：无凭证 → 401；等候区 Key 调用 → 响应无完整住院号格式（<code>\d{10,}</code>）与未掩码姓名。</li>
+</ul>
+<h3>f_019 switchAccount 仅凭 jobno 即可切换账号 — <span class="badge badge-high">P0</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>DoctorStationController.cs:2097-2108</code> 直接 <code>SwitchAccount(clientId, jobno)</code> 返回该账号 Staff/Account；2103 行未判 null；<code>NurseStationController.cs:266</code> 同名端点。</li>
+<li><strong>修复设计</strong>：① 挂【鉴权】+ ClientAuthAttribute（Doctor/NurseWorkstation 类型）；② 二次鉴权：<code>switchAccount(clientId, jobno, password)</code> 复用 LoginVerify 验证目标账号密码；③ 2103 行判空。</li>
+<li><strong>回归风险</strong>：现网"快速换账号"流程会多一次密码输入——可配置"本机绑定工号白名单免密"过渡。</li>
+<li><strong>验收</strong>：任意工号无密码 → 401/Error；带正确目标密码 → 成功；jobno="" / 不存在 → 业务 Error 非 NRE 文案。</li>
+</ul>
+<h3>f_020 getAgents 对 WebSocket 强转不判空 — <span class="badge badge-medium">P1</span></h3>
+<ul>
+<li><strong>根因</strong>：<code>CommandController.cs:294</code> <code>as WebSocketService</code> 结果 null 直接 <code>.Get</code> → 单条脏数据拖垮整表；同文件 237-244 有正确范本。</li>
+<li><strong>修复设计</strong>：294 行改 <code>(... as WebSocketService)?.Get(...)?.RemoteAddress?... ?? default</code>。</li>
+<li><strong>验收</strong>：注入脏 Agent → 200，该条 IP=null 其余正常。</li>
+</ul>
+<hr>
+<h2>3. 分阶段实施路线</h2>
+<h3>P0 — 安全止血（立即，预计 1~2 周）</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>涉及文件</th>
+<th>预估改动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>新建 Security 目录（中间件/脱敏/限流/过滤器）</td>
+<td><code>OPService/Security/*</code>（5 个新文件）</td>
+<td>~600 行（新增）</td>
+</tr>
+<tr>
+<td>中间件挂载</td>
+<td><code>Program.cs</code>（+2 行）</td>
+<td>极小</td>
+</tr>
+<tr>
+<td>f_002 脱敏三接入点</td>
+<td><code>CommandController.cs</code>、<code>DoctorStationController.cs</code></td>
+<td>~40 行</td>
+</tr>
+<tr>
+<td>f_001 setAppsetting 加固（白名单+去回显+审计）</td>
+<td><code>CommandController.cs:392-406</code></td>
+<td>~50 行</td>
+</tr>
+<tr>
+<td>f_003 publishMessage 收敛</td>
+<td><code>IschedController.cs</code></td>
+<td>~40 行</td>
+</tr>
+<tr>
+<td>f_011 登录锁定 + 请求日志脱敏</td>
+<td><code>ClientManagerComponent.cs</code>、<code>DSController.cs</code>、<code>DoorScreenManagerFWController.cs</code>、<code>NurseStationController.cs</code>、<code>Security/LoginThrottleService.cs</code></td>
+<td>~150 行</td>
+</tr>
+<tr>
+<td>f_018 恢复校验 + PHI 最小化</td>
+<td><code>DoctorStationController.cs:1268-1321</code>、<code>DSController.cs:868-981</code></td>
+<td>~80 行</td>
+</tr>
+<tr>
+<td>f_019 switchAccount 二次鉴权</td>
+<td><code>DoctorStationController.cs</code>、<code>NurseStationController.cs</code></td>
+<td>~60 行</td>
+</tr>
+<tr>
+<td>【异常】兜底中间件 + 已知泄漏 catch 替换</td>
+<td><code>OPService/Filters/GlobalExceptionMiddleware.cs</code>（新）+ 约 8 个控制器</td>
+<td>~100 行</td>
+</tr>
+<tr>
+<td>凭证轮换（运维）</td>
+<td>appsettings/外部系统</td>
+<td>非代码</td>
+</tr>
+</tbody>
+</table>
+<p>合计：新增 7 文件、修改约 12 文件、约 1100 行。</p>
+<h3>P1 — 健壮性（P0 后 2~4 周）</h3>
+<table>
+<thead>
+<tr>
+<th>项</th>
+<th>涉及文件</th>
+<th>预估</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>【校验】Helper 三件套</td>
+<td><code>OPService/Validation/*</code>（3 个新文件）</td>
+<td>~150 行</td>
+</tr>
+<tr>
+<td>f_006/f_009 枚举防线</td>
+<td><code>DSController.cs</code>、<code>DoorScreenManagerFWController.cs</code>、<code>DoctorStationController.cs</code>、<code>MatrixControlCenterController.cs</code>、<code>OperTeachController.cs</code></td>
+<td>~60 行</td>
+</tr>
+<tr>
+<td>f_010/f_020 JSON 语义统一 + getAgents 判空</td>
+<td><code>CommandController.cs</code>、<code>CopilotController.cs</code>、<code>JsonHelper.cs</code></td>
+<td>~80 行</td>
+</tr>
+<tr>
+<td>f_008 全量 catch 收敛（其余 20+ 处）</td>
+<td>全部控制器</td>
+<td>~120 行</td>
+</tr>
+<tr>
+<td>f_012/f_013/f_014 落库与状态机修补</td>
+<td><code>DoctorStationController.cs</code>、<code>DSController.cs</code></td>
+<td>~40 行</td>
+</tr>
+<tr>
+<td>f_015 分页钳制</td>
+<td><code>MonitorController.cs</code></td>
+<td>~10 行</td>
+</tr>
+<tr>
+<td>f_017 reload 任务化</td>
+<td><code>MDIController.cs</code>、<code>CommandController.cs</code></td>
+<td>~80 行</td>
+</tr>
+<tr>
+<td>f_005 双参数名兼容</td>
+<td><code>AiAssistantController.cs</code></td>
+<td>~15 行</td>
+</tr>
+<tr>
+<td>f_007 多台匹配防护（带回滚开关）</td>
+<td><code>DSController.cs</code>、<code>DoorScreenManagerFWController.cs</code></td>
+<td>~40 行</td>
+</tr>
+</tbody>
+</table>
+<p>合计：新增 3 文件、修改约 12 文件、约 600 行。</p>
+<h3>P2 — 一致性/治理（1~2 周）</h3>
+<ul>
+<li>f_004【治理】：route_snapshot 工具/单测 + api.yaml 重建（新工具 ~150 行，文档全量重生成）。</li>
+<li>f_016 恒假条件修复 + invalidCodes（<code>CopilotController.cs</code>，~10 行）。</li>
+<li>登录接口 POST 化 + GET 标记 deprecated（~80 行）。</li>
+<li>【鉴权】GracePeriod → Enforced 切换（配置变更，零代码）。</li>
+</ul>
+<hr>
+<h2>4. 验收用例映射表</h2>
+<p><strong>现有用例转绿预期</strong>（修复后以新版本为基线执行 <code>workflow/test_cases.yaml</code>）：</p>
+<table>
+<thead>
+<tr>
+<th>用例</th>
+<th>关联发现</th>
+<th>修复后预期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_096/097/099（敏感扫描）</td>
+<td>f_002</td>
+<td><strong>转绿</strong>：无 password/secret 明文、无 appsettingJson 字段；若接口整体 401 则改断言为 401+脱敏双断言</td>
+</tr>
+<tr>
+<td>tc_112（广播探针）</td>
+<td>f_003</td>
+<td><strong>转绿（语义反转）</strong>：无 Key → 401；新增带合法 Isched Key 的正向用例</td>
+</tr>
+<tr>
+<td>tc_154/155/156（f_001 探针三联）</td>
+<td>f_001</td>
+<td><strong>转绿（语义反转）</strong>：写探针 → 401/白名单拒绝；safety_hold 可解除</td>
+</tr>
+<tr>
+<td>tc_100（登录负向）</td>
+<td>f_011</td>
+<td>保持：错误口令 → 200+Error（简繁双兼容断言）；新增锁定用例</td>
+</tr>
+<tr>
+<td>tc_113/tc_157（save_results 假成功）</td>
+<td>f_save_results</td>
+<td>roomId 不存在 → 业务 Error</td>
+</tr>
+<tr>
+<td>tc_010（getProtos 裸数组）</td>
+<td>f_010</td>
+<td>包装为 Response</td>
+</tr>
+<tr>
+<td>tc_083/084（getRoomdata 空数组）</td>
+<td>f_010</td>
+<td>空数组 → error=0 空列表，与不存在编码文案区分</td>
+</tr>
+<tr>
+<td>tc_158/161/162（异常消息直出）</td>
+<td>f_008</td>
+<td>message 无内部异常特征正则命中；161/162 待路由恢复补验</td>
+</tr>
+<tr>
+<td>tc_059/060（safety_hold）</td>
+<td>f_001</td>
+<td>服务端白名单拒绝后可改为常规负向用例</td>
+</tr>
+<tr>
+<td>tc_062/066/100/130/131（本地化/校验差异）</td>
+<td>非缺陷</td>
+<td>随 P1 消息收敛统一文案后一并重新基线化</td>
+</tr>
+</tbody>
+</table>
+<p><strong>需新增的用例（10 类）</strong>：</p>
+<ol>
+<li><strong>鉴权矩阵</strong>：无 Key/无效 Key/有效 Key/过期 clientId × 读/写/配置端点，断言 401 码族与 Error 码</li>
+<li><strong>GracePeriod 兼容</strong>：老式 clientId 调用过渡期放行、Enforced 后 401（配置双态各跑一轮）</li>
+<li><strong>登录锁定</strong>：连续 5 次失败 → 锁定；锁定期间正确密码亦拒；跨账号同 IP 不误伤</li>
+<li><strong>枚举越界</strong>：processStatus=99/-1/65535、cameraMoveEnum=-1/9 → "取值非法"</li>
+<li><strong>分页钳制</strong>：越界 → 钳制结果且条数 ≤ 上限</li>
+<li><strong>落库一致性</strong>：saveVideosRecord 更新分支 DB 断言；sendFamilyCallMessage 故障注入不广播</li>
+<li><strong>reload 异步可观测</strong>：reloadTaskId + reloadstatus 状态流转</li>
+<li><strong>PHI 掩码</strong>：等候区响应无完整住院号/未掩码姓名</li>
+<li><strong>switchAccount 二次鉴权</strong>：无密码拒绝、有密码成功</li>
+<li><strong>消息收敛回归</strong>：全控制器随机无效参数轰炸，断言 message 不含 <code>Object reference|at .*cs|Stack trace|Exception:</code>（防 f_008 复发）</li>
+</ol>
+<hr>
+<p><strong>关键文件索引</strong>：<code>ComponentSystem\OPService\Program.cs</code>（挂载点）、<code>Controllers\CommandController.cs</code>、<code>Controllers\ds\DSController.cs</code>、<code>Controllers\DoctorStationController.cs</code>、<code>Controllers\fw\DoorScreenManagerFWController.cs</code>、<code>Controllers\IschedController.cs</code>、<code>Controllers\fw\MDIController.cs</code>、<code>Controllers\MonitorController.cs</code>、<code>Controllers\CopilotController.cs</code>、<code>Controllers\AiAssistantController.cs</code>、<code>ComponentSystem\OPComponents\ClientManagerComponent.cs</code>、<code>ComponentSystem\EL.Basic.Core\Core\Object\Message.cs</code>、<code>ComponentSystem\EL.Basic.Core\Serialize\JsonHelper.cs</code></p>
+</main>
+</body>
+</html>

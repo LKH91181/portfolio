@@ -1,0 +1,171 @@
+{
+  "meta": {
+    "report_version": 3,
+    "generated_at": "2026-09-29",
+    "service": "手术室消息、数据接口服务（OPService HTTP API）",
+    "base_url": "http://192.168.66.232:10002",
+    "ws_url": "ws://192.168.66.232:10001",
+    "api_doc_version": "api.yaml v1.0.0.0（272 端点 / 24 分组）",
+    "round": 3,
+    "round1_date": "2026-09-24",
+    "round1_deployment": "版本 A",
+    "round2_date": "2026-09-29",
+    "round2_deployment": "版本 B",
+    "round3_date": "2026-09-29",
+    "round3_deployment": "版本 B",
+    "round3_trigger": "用户提供压测脚本 OPS_connect0826.py，要求按脚本参数重新梳理测试用例并完成测试（登录链路补测）",
+    "total_cases_cumulative": 175,
+    "total_cases_note": "162 条（round2 优化后）+ 13 条（round3 独立补测）",
+    "report_file": "report/接口测试报告.md",
+    "report_r1_archive": "report/接口测试报告_r1.md",
+    "diff_note": "与第 1 版的差异：环境版本 A→B 变更为 round2 主线，通过率不可跨版本比较；第 3 版新增 round3 登录链路补测章节",
+    "conclusion_binding": "本报告结论绑定部署版本 B"
+  },
+  "round2_statistics": {
+    "total": 162,
+    "passed": 110,
+    "failed": 45,
+    "skipped": 7,
+    "error": 0,
+    "blocked": 0,
+    "pass_rate_raw": "67.9%",
+    "pass_rate_excl_skipped": "71.0%",
+    "duration_total_ms": 54236,
+    "by_group": {
+      "smoke": { "total": 8, "passed": 6, "failed": 2, "skipped": 0 },
+      "read_coverage": { "total": 50, "passed": 33, "failed": 12, "skipped": 5 },
+      "side_effect_negative": { "total": 18, "passed": 11, "failed": 5, "skipped": 2 },
+      "boundary": { "total": 19, "passed": 17, "failed": 2, "skipped": 0 },
+      "security": { "total": 17, "passed": 10, "failed": 7, "skipped": 0 },
+      "doc_consistency": { "total": 10, "passed": 8, "failed": 2, "skipped": 0 },
+      "deployment_route": { "total": 9, "passed": 7, "failed": 2, "skipped": 0 },
+      "read_coverage_r2": { "total": 22, "passed": 16, "failed": 6, "skipped": 0 },
+      "security_probe": { "total": 3, "passed": 1, "failed": 2, "skipped": 0 },
+      "supplemental": { "total": 6, "passed": 1, "failed": 5, "skipped": 0 }
+    }
+  },
+  "round3_statistics": {
+    "source": "workflow/test_results_r3.json",
+    "total": 13,
+    "passed": 6,
+    "failed": 7,
+    "skipped": 0,
+    "error": 0,
+    "pass_rate": "46.2%",
+    "duration_total_ms": 20912,
+    "by_group": {
+      "ws_protocol": { "total": 5, "passed": 3, "failed": 2, "skipped": 0 },
+      "script_flow": { "total": 3, "passed": 0, "failed": 3, "skipped": 0 },
+      "read_coverage_r3": { "total": 5, "passed": 3, "failed": 2, "skipped": 0 }
+    },
+    "ws_login_outcome": {
+      "ws_url": "ws://192.168.66.232:10001",
+      "room_id": "01272aa6-3c6d-4c10-89e7-8a4e9b65db1a",
+      "room_name": "手术间23/zxsss23",
+      "client_type": 113,
+      "client_id": "4ec1151d86df43ea",
+      "client_id_source": "客户端自生成（uuid4().hex[:16]）",
+      "ready": true,
+      "login_response": { "Error": 0, "Message": "登录成功", "Key": 0, "AccountId": null },
+      "heartbeat_sent": 4,
+      "closed": true
+    },
+    "key_findings": [
+      "登录链路全链路打通：61100 就绪 → 61001 注册 Error=0 → 61901 心跳；WS 注册 clientId 被 HTTP 端点认可（tc_r3_008/011/012 真实取数成功）",
+      "WS 免密注册零校验（f_ws_noverify，高危）：全零 GUID roomId 与越界 ClientType=999 均返回登录成功（tc_r3_003/tc_r3_004）",
+      "压测脚本（0826 版）与部署版本 B 错位：dsc_fw/dsc 路由全部 404（tc_r3_006/007/009/010/013）"
+    ]
+  },
+  "failure_attribution": {
+    "env_version_regression": 34,
+    "security_probe_expected_chain": 2,
+    "product_defects": 5,
+    "case_rebaseline_needed": 5,
+    "note": "tc_130 在环境回归（415）与待重新基线化双重归因，去重后共 45 条；tc_001 数据态差异登记于 case_issues。round3 另有独立失败 7 条（缺陷证据 2 + 脚本-部署版本错位 404 5），见 round3_failure_attribution",
+    "env_version_regression_cases": {
+      "r1_passed_to_404": ["tc_004", "tc_013", "tc_023", "tc_024", "tc_025", "tc_026", "tc_045", "tc_050", "tc_051", "tc_054", "tc_055", "tc_058", "tc_072", "tc_073", "tc_075", "tc_079", "tc_103", "tc_105", "tc_111", "tc_116", "tc_117"],
+      "new_cases_no_baseline_404": ["tc_132", "tc_141", "tc_142", "tc_144", "tc_145", "tc_153", "tc_159", "tc_160", "tc_161", "tc_162"],
+      "behavior_change": ["tc_001", "tc_130", "tc_157"]
+    },
+    "probe_expected_chain_cases": ["tc_155", "tc_156"],
+    "product_defect_cases": { "tc_096": "f_002", "tc_097": "f_002", "tc_099": "f_002", "tc_010": "f_010", "tc_083": "f_011" },
+    "rebaseline_cases": ["tc_062", "tc_066", "tc_100", "tc_130", "tc_131"]
+  },
+  "round3_failure_attribution": {
+    "defect_evidence": { "cases": ["tc_r3_003", "tc_r3_004"], "defect": "f_ws_noverify" },
+    "script_deployment_mismatch_404": { "cases": ["tc_r3_006", "tc_r3_007", "tc_r3_009", "tc_r3_010", "tc_r3_013"], "endpoints": ["/api/dsc_fw/setLocalConfig", "/api/dsc_fw/getSchedule", "/api/dsc/loadConfig", "/api/dsc/loadRooms"], "note": "压测脚本（0826 版）面向的 dsc_fw/dsc 路由在版本 B 不存在，同第 4 章环境版本回归口径" }
+  },
+  "defects": [
+    { "id": "f_002", "severity": "high", "status": "跨版本确认（r0+r1+r2）", "title": "配置类接口无鉴权返回明文口令/密钥，版本 B 命中同一批凭证", "evidence_case_ids": ["tc_096", "tc_097", "tc_099"] },
+    { "id": "f_003", "severity": "high", "status": "跨版本确认（r1+r2）", "title": "/api/isched/publishMessage 无鉴权广播，版本 B 新 messageId=d6cf7256-68a3-4dcb-b4f0-9a15d171352d；WS 免密注册进一步放大其影响面", "evidence_case_ids": ["tc_112"] },
+    { "id": "f_ws_noverify", "severity": "high", "status": "round3 实证", "title": "WS 61001 登录零校验：任意 roomId（含全零 GUID）与越界 ClientType=999 均返回登录成功，无凭证/签名/白名单；结合 f_003 说明系统身份体系完全自声明", "evidence_case_ids": ["tc_r3_003", "tc_r3_004"] },
+    { "id": "f_001", "severity": "high", "status": "受限证实（由部分证实降级）", "title": "setAppsetting 无鉴权可达；受控探针证实无法创建新配置键（error=300000 未找到Jtoken对象），写入面限于既有键覆盖", "evidence_case_ids": ["tc_154", "tc_155", "tc_156", "tc_059", "tc_060"] },
+    { "id": "f_save_results", "severity": "medium", "status": "跨版本持续（版本 B 仅对空 roomId 新增 400，任意不存在 ID 假成功未修复）", "title": "/api/dc/save_results 对不存在的 roomId 返回 error=0 content=true（假成功）", "evidence_case_ids": ["tc_113", "tc_157"] },
+    { "id": "f_010", "severity": "low", "status": "跨版本持续", "title": "/api/dc/getProtos 返回裸数组，违反 Response 统一包装约定", "evidence_case_ids": ["tc_010"] },
+    { "id": "f_011_roomdata_empty", "severity": "low", "status": "跨版本持续", "title": "/api/cmd/getRoomdata 空数组返回 error=300000，与术间不存在不可区分", "evidence_case_ids": ["tc_083", "tc_084"] },
+    { "id": "f_008", "severity": "low", "status": "environment_limited + 新旁证（tc_158 get_results 直出内部异常消息）", "title": "内部异常消息直出；dscm_fw 回归目标在版本 B 404 无法验证", "evidence_case_ids": ["tc_161", "tc_162", "tc_158"] }
+  ],
+  "defect_severity_summary": { "high": 4, "medium": 1, "low": 3, "total": 8 },
+  "defect_severity_summary_note": "累计口径（round2 7 条 + round3 新增 f_ws_noverify）；高危 4 = f_002/f_003/f_ws_noverify/f_001",
+  "skipped_breakdown": {
+    "missing_client_id": ["tc_015", "tc_021", "tc_022", "tc_028", "tc_030"],
+    "safety_hold": ["tc_059", "tc_060"],
+    "note": "tc_059/060 为 runner 安全策略有意拦截（setAppsetting 仅放行批准探针键 WorkflowProbe:qa_probe_r2），非用例误标。missing_client_id 5 条已于 round3 经 WS 注册真实 clientId 重参数化闭环：tc_015→tc_r3_008 passed、tc_028→tc_r3_011 passed、tc_030→tc_r3_012 passed、tc_021→tc_r3_009 404、tc_022→tc_r3_010 404"
+  },
+  "environment_version_shift": {
+    "detected": true,
+    "from": "版本 A（2026-09-24）",
+    "to": "版本 B（2026-09-29，第三形态：非版本 A 全集、非 api.yaml 全集，比版本 A 更接近本地源码但保留 reloadRoomData/refreshSchedule）",
+    "endpoints_missing_in_B": 31,
+    "r1_passed_to_404_cases": 21,
+    "message_locale_change": "错误消息简转繁（参数异常→參數異常 等）",
+    "behavior_tightening": ["refreshSchedule 非法 JSON 体 415（tc_130）", "空 roomId/value 模型校验 400（tc_157/tc_156）"],
+    "impact": "通过率不可跨版本比较；测试资产需绑定环境版本指纹；结论绑定版本 B",
+    "round3_evidence": "压测脚本 OPS_connect0826.py（0826 版）面向的 dsc_fw/dsc 路由在版本 B 全部 404，构成又一脚本-部署版本错位证据"
+  },
+  "case_optimization": {
+    "total_before": 131,
+    "total_after": 162,
+    "round3_added_independent": 13,
+    "cumulative_total": 175,
+    "repointed_deployment_route": 9,
+    "new_read_coverage_r2": 22,
+    "new_security_probe": 3,
+    "new_supplemental": 6,
+    "findings_coverage": "20/20",
+    "hints_coverage": "18/18"
+  },
+  "case_issues_rebaseline": [
+    { "case_id": "tc_062", "issue": "message_contains 为版本 A 简体文案，版本 B 返回『參數異常』", "suggestion": "简繁双兼容断言（仅以版本 B 为基线时生效）" },
+    { "case_id": "tc_066", "issue": "message_contains『未找到客户端』，版本 B 返回『未找到客戶端』", "suggestion": "同上" },
+    { "case_id": "tc_100", "issue": "message_contains『用户名或密码』，版本 B 返回『用户名或密碼錯誤』", "suggestion": "同上" },
+    { "case_id": "tc_130", "issue": "预期 [200,400] 未含版本 B 框架层 415", "suggestion": "以版本 B 为基线时预期改为 [200,400,415]" },
+    { "case_id": "tc_131", "issue": "message_contains『参数异常』过时，版本 B 返回『查询排台异常』", "suggestion": "更新消息断言（仅以版本 B 为基线时生效）" },
+    { "case_id": "tc_001", "issue": "content_not_null 断言依赖环境数据态，r2 因 content=[] 失败", "suggestion": "改为结构断言或将空列表视为有效响应" }
+  ],
+  "pending_env_verification": ["f_008 dscm_fw 路由（tc_161/162）", "dsc_fw/dsc 路由 5 条待压测脚本与部署版本对齐（tc_r3_006/007/009/010/013）"],
+  "pending_env_verification_note": "login 链路 5 条（tc_015/021/022/028/030）已于 round3 闭环，不再列为待补验",
+  "round1_compare": {
+    "round1": { "total": 131, "passed": 112, "failed": 5, "skipped": 14, "pass_rate_excl_skipped": "95.7%" },
+    "round2": { "total": 162, "passed": 110, "failed": 45, "skipped": 7, "pass_rate_excl_skipped": "71.0%" },
+    "round3_independent": { "total": 13, "passed": 6, "failed": 7, "skipped": 0, "pass_rate": "46.2%" },
+    "comparable": false,
+    "note": "被测对象已变更（版本 A→B），通过率不可直接比较；round3 为同版本 B 上的独立补测，不在 round1/round2 对照口径内"
+  },
+  "artifacts": {
+    "report": "report/接口测试报告.md",
+    "summary": "report/summary.json",
+    "r1_report_archive": "report/接口测试报告_r1.md",
+    "r2_results": "workflow/test_results.json",
+    "r1_results_archive": "workflow/test_results_r1.json",
+    "r2_verdict": "workflow/analysis_verdict.json",
+    "r1_verdict_archive": "workflow/analysis_verdict_r1.json",
+    "case_meta": "workflow/case_generation_meta.json",
+    "r3_cases": "workflow/test_cases_r3.yaml",
+    "r3_results": "workflow/test_results_r3.json",
+    "r3_login_helper": "workflow/login_helper.py",
+    "r3_runner": "workflow/run_tests_r3.py",
+    "load_test_script_source": "OPS_connect0826.py"
+  },
+  "retry_required": false
+}

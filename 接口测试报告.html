@@ -1,0 +1,1064 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>接口测试报告——手术室消息、数据接口服务</title>
+<style>
+  :root {
+    --ink: #1f2933;
+    --muted: #6b7785;
+    --line: #d9e2ec;
+    --accent: #0b5cad;
+    --bg: #f5f7fa;
+    --card: #ffffff;
+    --high: #c0392b;
+    --medium: #d68910;
+    --low: #2471a3;
+    --ok: #1e8449;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0;
+    font-family: "Microsoft YaHei", "PingFang SC", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    line-height: 1.75; font-size: 15px;
+  }
+  .page {
+    max-width: 1080px; margin: 24px auto 60px; padding: 40px 48px;
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(31, 41, 51, .06);
+  }
+  h1 {
+    font-size: 26px; margin: 0 0 20px; padding-bottom: 14px;
+    border-bottom: 3px solid var(--accent); color: var(--accent);
+    letter-spacing: 1px;
+  }
+  h2 {
+    font-size: 20px; margin: 36px 0 14px; padding: 8px 14px;
+    background: linear-gradient(90deg, #eaf2fb, transparent);
+    border-left: 5px solid var(--accent); border-radius: 3px;
+  }
+  h3 { font-size: 17px; margin: 26px 0 10px; color: #10456e; }
+  h4 { font-size: 15.5px; margin: 20px 0 8px; color: var(--ink); }
+  p { margin: 8px 0; }
+  ul, ol { margin: 8px 0; padding-left: 26px; }
+  li { margin: 4px 0; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 28px 0; }
+  table {
+    width: 100%; border-collapse: collapse; margin: 12px 0 20px;
+    font-size: 13.5px;
+  }
+  th, td { border: 1px solid var(--line); padding: 8px 12px; text-align: left; vertical-align: top; }
+  th { background: #eef3f8; color: #10456e; font-weight: 600; white-space: nowrap; }
+  tr:nth-child(even) td { background: #fafcfe; }
+  code {
+    font-family: Consolas, "Courier New", monospace; font-size: 12.5px;
+    background: #f0f3f6; border: 1px solid var(--line); border-radius: 3px;
+    padding: 1px 5px; color: #922b3e; word-break: break-all;
+  }
+  strong { color: #10456e; }
+  em { color: var(--muted); }
+  .badge {
+    display: inline-block; padding: 1px 10px; border-radius: 12px;
+    font-size: 12.5px; font-weight: 600; color: #fff; vertical-align: 1px;
+  }
+  .badge-high { background: var(--high); }
+  .badge-medium { background: var(--medium); }
+  .badge-low { background: var(--low); }
+  @media print {
+    body { background: #fff; }
+    .page { border: none; box-shadow: none; margin: 0; max-width: none; padding: 0; }
+    h2 { background: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+<h1>接口测试报告（第 3 版）——手术室消息、数据接口服务</h1>
+<table>
+<thead>
+<tr>
+<th>元信息</th>
+<th>值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>被测服务</td>
+<td>手术室消息、数据接口服务（OPService HTTP API）</td>
+</tr>
+<tr>
+<td>被测地址</td>
+<td>http://192.168.66.232:10002（HTTP）/ ws://192.168.66.232:10001（WS 接入网关，round3 新增覆盖）</td>
+</tr>
+<tr>
+<td>round1 执行日期</td>
+<td>2026-09-24（部署版本 A，131 条用例，报告留档 report/接口测试报告_r1.md）</td>
+</tr>
+<tr>
+<td>round2 执行日期</td>
+<td>2026-09-29（部署版本 B，162 条用例，本报告结论绑定版本 B）</td>
+</tr>
+<tr>
+<td>round3 执行日期</td>
+<td>2026-09-29（部署版本 B，13 条独立补测；触发：用户提供压测脚本 OPS_connect0826.py，要求按脚本参数重新梳理测试用例并完成测试）</td>
+</tr>
+<tr>
+<td>接口文档基线</td>
+<td>api.yaml v1.0.0.0（272 端点 / 24 分组）</td>
+</tr>
+<tr>
+<td>用例规模</td>
+<td>175 条（round2 优化后 162 条 + round3 独立补测 13 条）</td>
+</tr>
+<tr>
+<td>与第 1 版差异说明</td>
+<td>环境版本 A→B 变更为 round2 主线：被测对象在两轮之间发生部署版本变更，通过率不可跨版本比较</td>
+</tr>
+<tr>
+<td>round3 差异说明</td>
+<td>WS 登录链路全链路打通并实证高危缺陷 f_ws_noverify（WS 免密注册零校验）；原 5 条 missing_client_id 跳过用例全部闭环；压测脚本与部署版本错位再添证据</td>
+</tr>
+<tr>
+<td>报告受众</td>
+<td>测试负责人、开发负责人、环境负责人</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>1. 执行摘要</h2>
+<p>本轮（round2）的核心不是"通过率"，而是三件事：</p>
+<ol>
+<li><strong>用例优化落地</strong>：用例规模从 131 条优化至 162 条——9 条原 invalid_for_target 用例原位重指到部署环境真实路由（deployment_route 组），新增 31 条（22 条只读覆盖 read_coverage_r2 + 3 条 f_001 受控探针三联 + 6 条补充），findings/hints 追溯覆盖保持 20/20、18/18 不变，并新增 f_001 专属探针。</li>
+<li><strong>受控探针划清 f_001 写入边界并降级定性</strong>：f_001 三联探针（tc_154→tc_155→tc_156）证实 setAppsetting 无法创建新配置键（error=300000「未找到Jtoken对象！」），写入面限于既有键值覆盖，f_001 由 round1 的"部分证实"降级为"受限证实"；探针无残留、环境无污染。</li>
+<li><strong>发现并量化环境版本 A→B 变更</strong>：45 条失败中 34 条归因于环境版本回归，版本 B 是既非版本 A 全集、也非 api.yaml 全集的第三形态（详见第 4 章，本轮最重要发现）。</li>
+</ol>
+<p><strong>round3 总评（2026-09-29，登录链路补测）</strong>：依据用户提供的压测脚本 OPS_connect0826.py 逆向出 OPS 服务真正的客户端登录是 <strong>WebSocket 注册式</strong>（ws://192.168.66.232:10001，连接即收 61100 就绪，发 61001 完成"登录"，无需任何凭证），据此补充 13 条独立用例，三件事：其一，<strong>登录链路全链路打通</strong>——61100/61001/61901 全部符合脚本协议，WS 注册产生的 clientId=4ec1151d86df43ea 被 HTTP 端点认可并成功取回真实业务数据；其二，<strong>实证高危缺陷 f_ws_noverify</strong>——WS 登录零校验，任意 roomId（含全零 GUID）与越界 ClientType=999 均返回"登录成功"，系统身份体系完全自声明；其三，<strong>压测脚本（0826 版）与被测部署版本 B 错位</strong>——脚本面向的 dsc_fw/dsc 路由在版本 B 全部 404，构成继第 4 章之后的又一版本错位证据。原 5 条 missing_client_id 跳过用例全部闭环（3 成功、2 因路由缺失 404），详见第 5 章。</p>
+<p><strong>核心数字</strong></p>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>数值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>总用例数（round2）</td>
+<td>162</td>
+</tr>
+<tr>
+<td>通过</td>
+<td>110</td>
+</tr>
+<tr>
+<td>失败</td>
+<td>45</td>
+</tr>
+<tr>
+<td>跳过</td>
+<td>7（5 条登录依赖 + 2 条 safety_hold 有意控制）</td>
+</tr>
+<tr>
+<td>错误/阻塞</td>
+<td>0 / 0</td>
+</tr>
+<tr>
+<td>通过率（原始）</td>
+<td>67.9%</td>
+</tr>
+<tr>
+<td>通过率（剔除跳过）</td>
+<td>71.0%</td>
+</tr>
+<tr>
+<td>45 条失败归因构成</td>
+<td>环境版本回归 34 + 探针预期链 2 + 真实缺陷 5 + 待重新基线化 5（tc_130 与环境回归双重归因，去重后 45 条；tc_001 数据态差异随版本 B 基线化一并调整）</td>
+</tr>
+<tr>
+<td>确认缺陷（round2 口径）</td>
+<td>7（高危 3 / 中危 1 / 低危 3，跨版本口径，详见第 6 章；含 round3 后累计 8 条，高危 4）</td>
+</tr>
+<tr>
+<td>round2 执行总耗时</td>
+<td>54236 ms</td>
+</tr>
+<tr>
+<td>round3 补测（2026-09-29，独立口径）</td>
+<td>13 条：通过 6 / 失败 7 / 跳过 0，通过率 46.2%，总耗时 20912 ms；WS 登录链路打通（61100/61001/61901），实证高危缺陷 f_ws_noverify；累计用例规模 162+13=175，累计缺陷 8（高危 4 / 中危 1 / 低危 3）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>关键提醒</strong>：通过率不可与第 1 版（95.7%）直接比较——round1 与 round2 的被测对象已经变更（版本 A → 版本 B）。剔除 34 条环境版本回归后，版本 B 上真实缺陷/预期偏差失败仅 14 条（探针预期链 2 + 真实缺陷 5 + 待重新基线化 5，另有 2 条与上述类别重叠去重后计入），不代表产品质量退化。round3 的 7 条失败中，2 条为缺陷证据（f_ws_noverify，应拒绝未拒绝）、5 条为脚本-部署版本错位 404（同第 4 章环境口径），均非新增质量退化。</p>
+<hr>
+<h2>2. 用例优化（本轮做了什么）</h2>
+<h3>2.1 四类优化与理由</h3>
+<p>基于 round1 归因结论（analysis_verdict_r1.json）与 api_spec.json 端点清单，round2（规划日 2026-09-28）执行了四类优化：</p>
+<table>
+<thead>
+<tr>
+<th>优化类型</th>
+<th>数量</th>
+<th>内容与理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>重指 invalid_for_target 用例</td>
+<td>9</td>
+<td>tc_123~tc_131 由本地源码路由（/api/cmd/reloadroom、/api/mdi/reloadroom）原位重指为部署环境实测存在的真实路由：tc_123~tc_128 → GET /api/cmd/reloadRoomData（roomCodeJson 参数矩阵：缺失/空串/null/notjson/[]/[不存在编码]），tc_129~tc_131 → POST /api/mdi/refreshSchedule（body：[]/notjson/[不存在 hiscode]）；分组由 real_route 改为 deployment_route，去掉 skip 标记；预期参照 round1 tc_120/tc_118 实测基线（200+error=any）</td>
+</tr>
+<tr>
+<td>新增只读覆盖 read_coverage_r2</td>
+<td>22</td>
+<td>tc_132~tc_153：round1 未覆盖的 safe 端点各 1 条正向用例（bedScreen/getScheduleByDeviceId、direct/getRoomVideoData、doctorstation/getScheduleRecordData、getScheduleReportData、getMedicalOrders、getObserveData、getTeahData、getRecordServiceConfig、getConferenceServiceConfig、dscdt_fw/getTodaySchedulesByRoomId、dsc_fw/getScheduleById、familycall/getCallTasks、nursestation/getPathologyPrint、nursestation/getAccountData、waitingarea_fw/getDepartment、cmd/getDeviceData、matrixcontrol/getOPRoomData、mb/getRoomVideoData、mbt/getRoomVideoData、operteach/getORRoomData、operobserve/getAccountData、familytalk/getRoomSchedules）</td>
+</tr>
+<tr>
+<td>新增 f_001 受控探针三联 security_probe</td>
+<td>3</td>
+<td>tc_154（写探针：仅新建键 WorkflowProbe:qa_probe_r2=probe_value_20260924）→ tc_155（getAppsettings 读回验证 content_contains qa_probe_r2）→ tc_156（空值覆写恢复清理 teardown）；三联顺序强制，risk_level=high</td>
+</tr>
+<tr>
+<td>补充用例 supplemental</td>
+<td>6</td>
+<td>tc_157（save_results 空 roomId 假成功变体）、tc_158（get_results 只读回读）、tc_159（bleeding_detection_results 空对象负向）、tc_160（addMedicalOrders string 体负向）、tc_161/tc_162（f_008 部署版消息泄漏回归，message_not_contains 断言）</td>
+</tr>
+</tbody>
+</table>
+<p>优化后总数 131 → 162（重指 9 + 新增 31），tc_001~tc_122 的 id 与预期未改动。</p>
+<h3>2.2 覆盖与追溯</h3>
+<table>
+<thead>
+<tr>
+<th>覆盖项</th>
+<th>数量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>代码审查发现（findings）追溯</td>
+<td>20 / 20</td>
+<td>与 round1 持平，f_001~f_020 + f_save_results 全部有对应用例</td>
+</tr>
+<tr>
+<td>审查测试提示（hints）追溯</td>
+<td>18 / 18</td>
+<td>与 round1 持平，h_001~h_018 全部落到用例</td>
+</tr>
+<tr>
+<td>f_001 专属探针</td>
+<td>+3</td>
+<td>h_001（f_001）追溯用例由 2 条扩至 5 条（tc_059/060/154/155/156）</td>
+</tr>
+</tbody>
+</table>
+<h3>2.3 安全策略（红线）</h3>
+<ul>
+<li>探针仅限新键 WorkflowProbe:qa_probe_r2，必须与 tc_156 恢复步骤成组执行，不触碰任何既有配置键；其余所有 side_effect 端点仅负向参数用例（不存在的 ID/空 GUID/非法 JSON），reloadRoomData/refreshSchedule 矩阵全部使用不存在编码或非法 JSON，不触发真实重载。</li>
+<li><strong>tc_059/060 被 safety_hold 拦截属有意控制</strong>：runner 安全策略将 setAppsetting 写操作限定为仅放行批准探针键 WorkflowProbe:qa_probe_r2，tc_059/060（空 path / 不存在配置节）被拦截跳过。经核对 test_cases.yaml（第 898~920 行），这两条用例并无 depends_on 误标，属 runner 有意的安全控制，不计入用例问题；受控写入验证已由 tc_154~tc_156 探针三联覆盖。</li>
+<li>tc_112 为单条探针广播消息（qa_probe_20260923），测试环境单条可接受。</li>
+<li>round3 安全策略：WS 注册使用测试临时自建客户端（clientId=uuid4 自生成），tc_r3_006 setLocalConfig 仅写该自建客户端的本地配置，无业务侵入；负向用例仅使用全零 GUID / 越界枚举，不触碰真实术间数据。</li>
+</ul>
+<hr>
+<h2>3. 执行过程</h2>
+<h3>3.1 时间线</h3>
+<table>
+<thead>
+<tr>
+<th>时间</th>
+<th>事件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-09-23</td>
+<td>round0 首轮执行（版本 A）：85/41/5，归因后触发 1 轮用例修正</td>
+</tr>
+<tr>
+<td>2026-09-24</td>
+<td>round1 重测（版本 A）：112/5/14，剔除跳过通过率 95.7%，进入报告生成（第 1 版报告）</td>
+</tr>
+<tr>
+<td>2026-09-28</td>
+<td>用例优化完成（131→162）；执行时发现服务下线——ping 通但 TCP 10002 无监听（三次连接均 WinError 10061），162 条用例全部 blocked，主 Agent 独立复核确认服务未运行</td>
+</tr>
+<tr>
+<td>2026-09-29 09:47</td>
+<td>服务以版本 B 恢复后全量执行 round2：110/45/7，剔除跳过通过率 71.0%，连通性预检 ok</td>
+</tr>
+<tr>
+<td>2026-09-29</td>
+<td>round3 登录链路补测（版本 B，独立 13 条）：6/7/0，通过率 46.2%；WS 登录链路打通并实证 f_ws_noverify；原 5 条 missing_client_id 跳过用例闭环</td>
+</tr>
+</tbody>
+</table>
+<h3>3.2 round2 结果概览（按分组统计）</h3>
+<table>
+<thead>
+<tr>
+<th>分组</th>
+<th>用例数</th>
+<th>通过</th>
+<th>失败</th>
+<th>跳过</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>smoke</td>
+<td>8</td>
+<td>6</td>
+<td>2</td>
+<td>0</td>
+<td>失败均为环境回归（tc_004 404、tc_001 数据态）</td>
+</tr>
+<tr>
+<td>read_coverage</td>
+<td>50</td>
+<td>33</td>
+<td>12</td>
+<td>5</td>
+<td>失败含 11 条 404 回归 + tc_010（f_010）；跳过 5 条登录依赖</td>
+</tr>
+<tr>
+<td>side_effect_negative</td>
+<td>18</td>
+<td>11</td>
+<td>5</td>
+<td>2</td>
+<td>失败含 3 条 404 回归 + tc_062/066（简繁差异）；跳过 2 条 safety_hold</td>
+</tr>
+<tr>
+<td>boundary</td>
+<td>19</td>
+<td>17</td>
+<td>2</td>
+<td>0</td>
+<td>tc_079 404 回归 + tc_083（f_011）</td>
+</tr>
+<tr>
+<td>security</td>
+<td>17</td>
+<td>10</td>
+<td>7</td>
+<td>0</td>
+<td>失败含 3 条 404 回归 + tc_096/097/099（f_002）+ tc_100（简繁差异）</td>
+</tr>
+<tr>
+<td>doc_consistency</td>
+<td>10</td>
+<td>8</td>
+<td>2</td>
+<td>0</td>
+<td>tc_116/117 404 回归</td>
+</tr>
+<tr>
+<td>deployment_route</td>
+<td>9</td>
+<td>7</td>
+<td>2</td>
+<td>0</td>
+<td>r2 重指组；tc_130 415、tc_131 消息基线过时</td>
+</tr>
+<tr>
+<td>read_coverage_r2</td>
+<td>22</td>
+<td>16</td>
+<td>6</td>
+<td>0</td>
+<td>r2 新增；6 条命中版本 B 缺失路由 404</td>
+</tr>
+<tr>
+<td>security_probe</td>
+<td>3</td>
+<td>1</td>
+<td>2</td>
+<td>0</td>
+<td>f_001 三联；tc_155/156 为探针预期结果链</td>
+</tr>
+<tr>
+<td>supplemental</td>
+<td>6</td>
+<td>1</td>
+<td>5</td>
+<td>0</td>
+<td>r2 补充；tc_157/159/160/161/162 失败（详见附录 B）</td>
+</tr>
+<tr>
+<td><strong>合计</strong></td>
+<td><strong>162</strong></td>
+<td><strong>110</strong></td>
+<td><strong>45</strong></td>
+<td><strong>7</strong></td>
+<td>通过率（剔除跳过）71.0%</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>4. 环境版本 A→B 变更（本轮最重要发现）</h2>
+<p><strong>结论</strong>：round1（2026-09-24，版本 A）与 round2（2026-09-29，版本 B）之间被测环境发生了版本变更，且<strong>版本 B 是既非版本 A 全集、也非 api.yaml 全集的第三形态</strong>。同一套未改动的用例（tc_001~tc_122）在版本 B 上出现大范围行为差异：21 条 r1 通过用例确定性 404，简繁体消息本地化变更，部分入参校验行为收紧。</p>
+<h3>4.1 量化回归面一：31 个端点未挂载（路由消失）</h3>
+<ul>
+<li><strong>21 条 r1 通过用例在版本 B 上确定性 404</strong>（r1 与 r2 对同一用例的确定性回归），覆盖 9 个路由组约 21 个端点：</li>
+<li>bedScreen×3：tc_004（loadRoomsData）、tc_013（loadServerConfig）、tc_116（setLocalConfig）</li>
+<li>dscdt_fw×2：tc_023、tc_024；dsc_fw×2：tc_025、tc_026</li>
+<li>matrixcontrol/getPushScreenModeData：tc_045</li>
+<li>nursestation×8：tc_050、tc_051、tc_054、tc_055、tc_072、tc_073、tc_105、tc_111</li>
+<li>waitingarea_fw：tc_058；ds_patient_page：tc_075；dscm_fw×3：tc_079、tc_103、tc_117</li>
+<li><strong>另有 10 条 r2 新增用例命中的端点在版本 B 上同样 404</strong>（无 r1 基线）：tc_132、tc_141、tc_142、tc_144、tc_145、tc_153、tc_159、tc_160、tc_161、tc_162。</li>
+<li>合计观测到<strong>约 31 个端点在版本 B 未挂载</strong>。</li>
+</ul>
+<h3>4.2 量化回归面二：错误消息简转繁</h3>
+<p>错误消息由简体中文变为繁体，业务语义与错误码完全一致，属本地化变更而非缺陷：</p>
+<table>
+<thead>
+<tr>
+<th>用例</th>
+<th>端点</th>
+<th>版本 A（round1）</th>
+<th>版本 B（round2）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_062</td>
+<td>/api/ds/setLocalConfig</td>
+<td>参数异常</td>
+<td>參數異常</td>
+</tr>
+<tr>
+<td>tc_066</td>
+<td>/api/doctorstation/saveVideosRecord</td>
+<td>未找到客户端</td>
+<td>未找到客戶端</td>
+</tr>
+<tr>
+<td>tc_100</td>
+<td>/api/ds/login</td>
+<td>用户名或密码错误</td>
+<td>用户名或密碼錯誤</td>
+</tr>
+<tr>
+<td>tc_067</td>
+<td>/api/doctorstation/saveVideosRecord</td>
+<td>录制数据对象序列化异常</td>
+<td>錄製資料物件序列化異常</td>
+</tr>
+<tr>
+<td>批量</td>
+<td>多端点</td>
+<td>未找到客户端</td>
+<td>未找到客戶端（tc_016/018/019/031/033/034/036/037/040/041/042/046/049 等，系统性不一致）</td>
+</tr>
+</tbody>
+</table>
+<p>波及 tc_062/066/100 等 5 条失败用例（消息断言基线过时），以及大量通过用例的响应文本。</p>
+<h3>4.3 量化回归面三：行为收紧与数据态差异</h3>
+<table>
+<thead>
+<tr>
+<th>用例</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_130</td>
+<td>refreshSchedule 非法 JSON 串体：版本 A 200/400 → 版本 B 415 Unsupported Media Type（application/problem+json，框架层媒体类型校验收紧）</td>
+</tr>
+<tr>
+<td>tc_157</td>
+<td>save_results 空 roomId：业务错误 → 版本 B 模型校验 400（The roomId field is required）</td>
+</tr>
+<tr>
+<td>tc_156</td>
+<td>setAppsetting 空 value：模型校验 400（The value field is required）</td>
+</tr>
+<tr>
+<td>tc_001</td>
+<td>/api/dc 在线客户端列表 r1 content 非空 → r2 content=[]（环境数据态差异，非接口行为变更）</td>
+</tr>
+</tbody>
+</table>
+<h3>4.4 基线判断：版本 B 是"第三形态"</h3>
+<ul>
+<li><strong>版本 B 比版本 A 更接近本地源码</strong>：消失的路由组（dscm_fw、dsc_fw、dscdt_fw、waitingarea_fw、ds_patient_page、nursestation 扩展端点）与 review_notes f_004 基于本地源码预测的"约 50 端点 404"清单方向一致；nursestation/getPathologyPrint（病理系列）在版本 B 缺失，与本地源码无 NurseStation 病理系列的审查结论吻合。</li>
+<li><strong>但版本 B ≠ 本地源码全集</strong>：版本 B 仍保留 api.yaml 中存在而本地源码没有的 /api/cmd/reloadRoomData 与 /api/mdi/refreshSchedule（deployment_route 组 reloadRoomData×6 + refreshSchedule 空/合法体 2 条通过，仅非法 JSON 体 415 一条失败，7/9 通过）。</li>
+<li><strong>结论</strong>：版本 B ≠ 版本 A ≠ api.yaml 全集，是与本地源码"更接近但不等同"的第三个部署形态。</li>
+</ul>
+<h3>4.5 影响与要求</h3>
+<ol>
+<li><strong>通过率不可跨版本比较</strong>：round1 的 95.7% 与 round2 的 71.0% 分别对应不同被测对象，任何跨轮趋势分析必须先剔除 34 条环境版本回归。</li>
+<li><strong>测试资产需绑定环境版本指纹</strong>：用例预期（消息文案、状态码集合、路由存在性）与部署版本强耦合。建议执行前探测路由快照/构建号作为版本指纹，写入执行报告元信息。</li>
+<li><strong>本报告结论绑定版本 B</strong>：若环境再次变更，第 6 章缺陷清单与用例预期需按新版本重新基线化。</li>
+</ol>
+<hr>
+<h2>5. round3：登录链路补测（压测脚本参数逆向）</h2>
+<h3>5.1 触发与脚本逆向结论</h3>
+<p><strong>触发</strong>：用户提供压测脚本 OPS_connect0826.py（0826 版），要求按脚本参数重新梳理测试用例并完成测试。</p>
+<p>对脚本的逆向结论（产物 workflow/login_helper.py 严格对齐其协议实现）：</p>
+<ul>
+<li><strong>OPS 服务真正的客户端登录是 WebSocket 注册式</strong>：入口 ws://192.168.66.232:10001，文本帧格式 = opcode + JSON 字符串；</li>
+<li><strong>61100</strong>：连接建立后服务端主动推送的就绪信号（无需请求），脚本以单读取者事件承接；</li>
+<li><strong>61001 = "登录"</strong>：发送 <code>{"RpcId","ClientId","roomId","ClientType"}</code> 即完成注册（<strong>无需任何凭证</strong>），响应为 PascalCase（Error/RpcId/Message/Key/AccountId 等）；</li>
+<li><strong>61901 = 心跳</strong>：每 5s 发送一次保活；</li>
+<li><strong>clientId 由客户端自生成</strong>（uuid4().hex[:16]），服务端不签发、不校验来源；</li>
+<li><strong>脚本参数</strong>：roomId=01272aa6-3c6d-4c10-89e7-8a4e9b65db1a（手术间23/zxsss23，经 tc_r3_008 响应证实）、ClientType=113。</li>
+</ul>
+<p><strong>根因解释</strong>：round2 中 5 条用例 missing_client_id 跳过的根因至此查明——此前误将 /api/ds/login 等 HTTP 登录接口当作客户端唯一登录入口，而这些接口只是门口屏管理端专用；普通客户端的凭证来自 WS 注册（连接即得 clientId，61001 即完成登录）。</p>
+<h3>5.2 round3 用例与结果（13 条逐条）</h3>
+<p>用例定义 workflow/test_cases_r3.yaml（3 组：ws_protocol / script_flow / read_coverage_r3），执行器 workflow/run_tests_r3.py，结果 workflow/test_results_r3.json。</p>
+<p><strong>总览</strong>：13 条 = 通过 6 / 失败 7 / 跳过 0，通过率 46.2%，总耗时 20912 ms；主 WS 会话 ready=true、登录 Error=0「登录成功」、保活心跳发送 4 次、正常关闭。</p>
+<table>
+<thead>
+<tr>
+<th>用例 ID</th>
+<th>分组</th>
+<th>内容</th>
+<th>方法 / 端点</th>
+<th>结果</th>
+<th>关键证据（耗时）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_r3_001</td>
+<td>ws_protocol</td>
+<td>WS 连接就绪信号 61100</td>
+<td>WS_CONNECT ws://192.168.66.232:10001?clientId={auto}</td>
+<td>passed</td>
+<td>收到 61100 就绪信号，clientId=4ec1151d86df43ea（127 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_002</td>
+<td>ws_protocol</td>
+<td>WS 登录注册 61001（真实术间 + ClientType=113）</td>
+<td>WS_LOGIN opcode 61001</td>
+<td>passed</td>
+<td>Error=0「登录成功」，响应 Key/AccountId 字段恒空（20 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_003</td>
+<td>ws_protocol</td>
+<td>负向：不存在的 roomId（全零 GUID）</td>
+<td>WS_LOGIN_BAD opcode 61001</td>
+<td><strong>failed（缺陷证据）</strong></td>
+<td>Error=0「登录成功」，无效 roomId 未被拒绝；独立短连接（10108 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_004</td>
+<td>ws_protocol</td>
+<td>负向：越界 ClientType=999</td>
+<td>WS_LOGIN_BAD opcode 61001</td>
+<td><strong>failed（缺陷证据）</strong></td>
+<td>Error=0「登录成功」，枚举外值未被拒绝；独立短连接（10111 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_005</td>
+<td>ws_protocol</td>
+<td>WS 心跳探测 61901</td>
+<td>WS_HEARTBEAT opcode 61901</td>
+<td>passed</td>
+<td>返回 Time=1792059151560（9 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_006</td>
+<td>script_flow</td>
+<td>门口屏FW设置本地配置（脚本同参复现）</td>
+<td>GET /api/dsc_fw/setLocalConfig</td>
+<td>failed</td>
+<td>预期 200 实际 404（113 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_007</td>
+<td>script_flow</td>
+<td>门口屏FW获取进行中手术（脚本同参复现）</td>
+<td>GET /api/dsc_fw/getSchedule</td>
+<td>failed</td>
+<td>预期 200 实际 404（27 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_008</td>
+<td>read_coverage_r3</td>
+<td>只读-导播通用数据字典（真实 clientId，原 tc_015）</td>
+<td>GET /api/direct/getCommonData</td>
+<td>passed</td>
+<td>200+error=0，返回真实术间列表（含手术间23/zxsss23/roomId=01272aa6-…），证实 WS 注册 clientId 被 HTTP 端点认可（247 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_009</td>
+<td>read_coverage_r3</td>
+<td>只读-门口屏公共配置（原 tc_021）</td>
+<td>GET /api/dsc/loadConfig</td>
+<td>failed</td>
+<td>预期 200 实际 404（15 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_010</td>
+<td>read_coverage_r3</td>
+<td>只读-门口屏术间列表（原 tc_022）</td>
+<td>GET /api/dsc/loadRooms</td>
+<td>failed</td>
+<td>预期 200 实际 404（9 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_011</td>
+<td>read_coverage_r3</td>
+<td>只读-DS术间视频源信息（原 tc_028）</td>
+<td>GET /api/ds/getRoomVideoData</td>
+<td>passed</td>
+<td>200+error=0，返回真实视频源（52 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_012</td>
+<td>read_coverage_r3</td>
+<td>只读-DS配置信息（原 tc_030）</td>
+<td>GET /api/ds/loadConfig</td>
+<td>passed</td>
+<td>200+error=0，返回真实服务配置（63 ms）</td>
+</tr>
+<tr>
+<td>tc_r3_013</td>
+<td>script_flow</td>
+<td>门口屏FW获取进行中手术-负向对照（不存在 roomId）</td>
+<td>GET /api/dsc_fw/getSchedule</td>
+<td>failed</td>
+<td>预期 200 实际 404；与 tc_r3_007 正负对照均 404，证明 404 与 roomId 取值无关、纯属路由缺失（11 ms）</td>
+</tr>
+</tbody>
+</table>
+<p>WS 会话元信息（ws_login_outcome）：clientId=4ec1151d86df43ea、roomId=01272aa6-3c6d-4c10-89e7-8a4e9b65db1a、ClientType=113、ready=true；登录响应 <code>{"RpcId":1,"Error":0,"Message":"登录成功","Address":null,"Port":0,"AccountId":null,"ClientId":null,"Key":0,"StackTrace":null}</code>（注意 Key/AccountId 恒空）；heartbeat_sent=4、closed=true。</p>
+<h3>5.3 三个关键发现</h3>
+<p><strong>发现一：登录链路全链路打通（覆盖率修复）</strong>。tc_r3_001/002/005 证实 61100 就绪 → 61001 注册（Error=0「登录成功」）→ 61901 心跳返回（Time=1792059151560）全部符合脚本协议；且 WS 注册产生的 clientId 被 HTTP 端点认可——tc_r3_008（/api/direct/getCommonData，返回真实术间列表）、tc_r3_011（/api/ds/getRoomVideoData，返回真实视频源）、tc_r3_012（/api/ds/loadConfig，返回真实服务配置）均以该 clientId 成功取数。</p>
+<p><strong>发现二：WS 免密注册零校验（新缺陷 f_ws_noverify，高危，round3 实证）</strong>。tc_r3_003：roomId=00000000-0000-0000-0000-000000000000（全零 GUID，不存在的术间）→ Error=0「登录成功」（应拒绝未拒绝）；tc_r3_004：ClientType=999（枚举外，合法域 100~123/200/201/210）→ Error=0「登录成功」。61001 登录全程无凭证、无签名、无白名单；结合 f_003 说明系统身份体系完全自声明——任意内网主机可伪装任意客户端类型/任意术间接入，并调用全部 HTTP 接口（详见第 6.3 节）。</p>
+<p><strong>发现三：压测脚本与被测部署版本错位（又一版本错位证据）</strong>。脚本同参复现组全部 404：/api/dsc_fw/setLocalConfig、/api/dsc_fw/getSchedule（tc_r3_006/007/013，含正负 roomId 对照均 404）与 /api/dsc/loadConfig、/api/dsc/loadRooms（tc_r3_009/010）。即压测脚本（0826 版）面向的 dsc_fw/dsc 路由在当前部署版本 B 不存在——<strong>脚本面向的部署版本与被测环境不一致</strong>，与第 4 章"版本 B 为第三形态"结论互相印证。这 5 条 404 属环境口径（非产品新缺陷、非用例缺陷），脚本需与部署版本对齐后重测。</p>
+<h3>5.4 原 5 条跳过用例的最终闭环对照</h3>
+<p>round2 中因 missing_client_id 跳过的 5 条用例（见第 8 章），本轮以 WS 注册的真实 clientId 重参数化后全部闭环：</p>
+<table>
+<thead>
+<tr>
+<th>原用例</th>
+<th>round3 替代</th>
+<th>端点</th>
+<th>结果</th>
+<th>闭环说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_015</td>
+<td>tc_r3_008</td>
+<td>/api/direct/getCommonData</td>
+<td>passed（200+error=0）</td>
+<td>真实 clientId 取数成功，用例闭环</td>
+</tr>
+<tr>
+<td>tc_028</td>
+<td>tc_r3_011</td>
+<td>/api/ds/getRoomVideoData</td>
+<td>passed（200+error=0）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>tc_030</td>
+<td>tc_r3_012</td>
+<td>/api/ds/loadConfig</td>
+<td>passed（200+error=0）</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>tc_021</td>
+<td>tc_r3_009</td>
+<td>/api/dsc/loadConfig</td>
+<td>failed（404）</td>
+<td>非用例问题：路由在版本 B 未挂载（同第 4 章环境回归口径）</td>
+</tr>
+<tr>
+<td>tc_022</td>
+<td>tc_r3_010</td>
+<td>/api/dsc/loadRooms</td>
+<td>failed（404）</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<p>至此 round2 全部 7 条跳过用例处置完毕：5 条 missing_client_id 重参数化闭环，2 条 safety_hold（tc_059/060）维持有意控制不变。</p>
+<hr>
+<h2>6. 确认缺陷清单（跨版本口径，重点）</h2>
+<p>共确认 8 条缺陷：高危 4（f_002 / f_003 / f_001 / f_ws_noverify）/ 中危 1 / 低危 3。其中 f_ws_noverify 由 round3 实证加入，其余缺陷以<strong>跨版本状态</strong>标注——凡在版本 A 与版本 B 上均复现的缺陷，其修复优先级高于单版本问题。</p>
+<h3>6.1 f_002（高危 · 跨版本确认 r0+r1+r2）</h3>
+<ul>
+<li><strong>标题</strong>：配置类接口无鉴权返回明文口令/密钥（getAppsettings / doctorstation/loadServerConfig / getappsettings 全量回显 SIP 口令、Minio 密钥、物料接口授权密码）。</li>
+<li><strong>跨版本状态</strong>：跨版本确认（round0 + round1 + round2 三轮复现），版本 B 命中<strong>同一批凭证</strong>。</li>
+<li><strong>实证证据</strong>（版本 B，sensitive_scan 命中）：</li>
+<li>tc_096 GET /api/cmd/getAppsettings → error=0，含 <code>servicePath:Sip:Password=3DbKziKi</code>、<code>doctorStation:SetItemPage:Passworld=admin</code>；</li>
+<li>tc_097 GET /api/doctorstation/loadServerConfig → error=0，含 <code>MinioServerSecretKey=admin123456</code>、<code>Oper_MaterialRequisitionPassword=000000</code>；</li>
+<li>tc_099 GET /api/doctorstation/getappsettings → error=0，含 <code>ServicePath:Sip:Password=3DbKziKi</code>。</li>
+<li>tc_098（getAccountData）在版本 B 因 clientId 无效返回「未找到客戶端」未触达数据面，不构成反证。</li>
+<li><strong>修复建议</strong>：为三个端点增加鉴权或下线；按敏感键白名单脱敏响应；立即轮换已泄漏凭证（3DbKziKi / admin / admin123456 / 000000）。不得改用例掩盖。</li>
+</ul>
+<h3>6.2 f_003（高危 · 跨版本确认 r1+r2）</h3>
+<ul>
+<li><strong>标题</strong>：/api/isched/publishMessage 无鉴权即可向全系统广播任意消息（非法 JSON 亦被接受，服务端以 Isched 身份生成 messageId 并分发）。</li>
+<li><strong>跨版本状态</strong>：跨版本确认（round1 + round2），版本 B 新 messageId 实证。</li>
+<li><strong>实证证据</strong>（tc_112，版本 B）：以非空 displayTxt=qa_probe_20260923 + 非法 jsonDataContent=notjson 无鉴权调用，返回 200+error=0，content 含 messageId=<strong>d6cf7256-68a3-4dcb-b4f0-9a15d171352d</strong>（版本 A 为 20acfc94-d112-4aca-81b3-5a2f4fe216f5），displayText 原样广播、fromClientId=Isched、createTime=2026-09-29T09:47:24——无鉴权广播能力在版本 B 完整保留。</li>
+<li><strong>修复建议</strong>：增加鉴权与来源校验；校验 jsonDataContent 合法性；限制可广播的 keyWorld/displayText 来源。</li>
+<li><strong>round3 补充</strong>：WS 免密注册（f_ws_noverify）进一步放大其影响面——任意主机可先免密注册任意客户端身份，再调用广播接口。</li>
+</ul>
+<h3>6.3 f_ws_noverify（高危 · round3 实证）</h3>
+<ul>
+<li><strong>标题</strong>：WS 61001 登录零校验——任意 roomId（含全零 GUID）与越界 ClientType=999 均返回 Error=0「登录成功」，全程无凭证、无签名、无白名单。</li>
+<li><strong>状态</strong>：round3 实证（tc_r3_003 / tc_r3_004，独立短连接各一次）。</li>
+<li><strong>实证证据</strong>：roomId=00000000-0000-0000-0000-000000000000（不存在的术间）→ Error=0「登录成功」（应拒绝未拒绝）；ClientType=999（枚举外，合法域 100~123/200/201/210）→ Error=0「登录成功」。clientId 由客户端自生成（uuid4().hex[:16]）即被服务端接受，登录响应的 Key/AccountId 字段恒空。</li>
+<li><strong>影响</strong>：结合 f_003（HTTP 无鉴权广播）说明系统身份体系完全自声明——任意内网主机可伪装任意客户端类型/任意术间接入，并调用全部 HTTP 接口（tc_r3_008/011/012 证实 WS 注册的 clientId 即被 HTTP 端点认可并可取回真实业务数据）。</li>
+<li><strong>修复建议</strong>：61001 增加凭证或预共享密钥；服务端校验 roomId 存在性与 ClientType 枚举合法域（100~123/200/201/210）；登录响应的 Key/AccountId 字段当前恒空，可承载服务端签发凭证。</li>
+</ul>
+<h3>6.4 f_001（高危 · 受限证实，由 round1"部分证实"降级）</h3>
+<ul>
+<li><strong>标题</strong>：setAppsetting 无鉴权可达；受控探针证实<strong>无法创建新配置键</strong>（error=300000「未找到Jtoken对象！」），写入面限于对既有键值的覆盖，覆盖写入场景未测且不应测。</li>
+<li><strong>跨版本状态</strong>：受限证实（降级表述）。无鉴权可达两轮证实（tc_060 业务错误无鉴权挑战、tc_154 请求直达业务层）；任意写入能力被否定。</li>
+<li><strong>实证证据</strong>：见第 7 章探针三联。tc_059/060（既有键覆盖写入场景）被 safety_hold 拦截，按安全红线不测试。</li>
+<li><strong>修复建议</strong>：为写型配置接口增加鉴权；对既有键覆盖写入的风险通过代码审计（本地源码 setAppsetting 实现）评估，<strong>不再进行环境写验证</strong>。</li>
+</ul>
+<h3>6.5 f_save_results（中危 · 跨版本持续）</h3>
+<ul>
+<li><strong>标题</strong>：/api/dc/save_results 对不存在的 roomId 返回 error=0 content=true（假成功）。</li>
+<li><strong>跨版本状态</strong>：跨版本持续（r1+r2）。<strong>版本 B 仅对空 roomId 新增了 400 校验（tc_157），对任意不存在 ID 的假成功未修复</strong>。</li>
+<li><strong>实证证据</strong>：tc_113 roomId=qa_probe（不存在）→ <code>{"error":0,"content":true,"message":""}</code>（版本 B 依旧）；tc_157 空 roomId → 400 模型校验。</li>
+<li><strong>修复建议</strong>：校验 roomId 有效性，无效输入返回业务 Error；报告中注明版本 B 仅部分收紧。</li>
+</ul>
+<h3>6.6 f_010（低危 · 跨版本持续）</h3>
+<ul>
+<li><strong>标题</strong>：/api/dc/getProtos 返回裸数组，违反 Response{error,content,message} 统一包装约定。</li>
+<li><strong>实证证据</strong>：tc_010（r2 实际响应仍为顶层数组 [{rpcId,content,name,clientType,code,targetClientId}...]，error 取值 None）。</li>
+<li><strong>修复建议</strong>：包装为 Response<List\<T>> 或在 api.yaml 标注例外。</li>
+</ul>
+<h3>6.7 f_011_roomdata_empty（低危 · 跨版本持续）</h3>
+<ul>
+<li><strong>标题</strong>：/api/cmd/getRoomdata 空数组 roomCodeJson=[] 返回 error=300000「没有找到房间信息！」，与术间不存在场景不可区分。</li>
+<li><strong>实证证据</strong>：tc_083（expected error==0，actual error=300000）与 tc_084（不存在编码）返回完全相同。</li>
+<li><strong>修复建议</strong>：空数组返回 error=0+空列表或明确参数错误。</li>
+</ul>
+<h3>6.8 f_008（低危 · environment_limited + 新旁证）</h3>
+<ul>
+<li><strong>标题</strong>：内部异常消息直出（Object reference not set...）。原定 dscm_fw 回归目标在版本 B 404，无法完成原定验证；旁证表明内部异常消息直出问题在版本 B 经由其他端点仍然存在。</li>
+<li><strong>状态</strong>：environment_limited（tc_161/162 目标 /api/dscm_fw/getDepartmentsData、/api/dscm_fw/getSchedulesByDep 在版本 B 404，f_008 消息泄漏回归验证受限）。</li>
+<li><strong>新旁证（单独披露）</strong>：tc_158 GET /api/dc/get_results 对 roomId=qa_probe 返回 message=<strong>"Object reference not set to an instance of an object."</strong>——该用例因 error=any 预期记 passed，但内部异常消息直出的泄漏事实在版本 B 成立。</li>
+<li><strong>修复建议</strong>：全局异常过滤器兜底，禁止将内部异常消息写入响应 message 字段；待环境恢复 dscm_fw 路由后补验。</li>
+</ul>
+<hr>
+<h2>7. 安全探针专项（f_001 三联）</h2>
+<p>按序成组执行（tc_154 → tc_155 → tc_156），结果：</p>
+<table>
+<thead>
+<tr>
+<th>用例</th>
+<th>动作</th>
+<th>结果</th>
+<th>解读</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_154</td>
+<td>写探针：新建 WorkflowProbe:qa_probe_r2=probe_value_20260924</td>
+<td>200 + error=300000「未找到Jtoken对象！」</td>
+<td><strong>写入被拒</strong>：setAppsetting 无法创建新配置键，请求直达业务层且无鉴权挑战</td>
+</tr>
+<tr>
+<td>tc_155</td>
+<td>getAppsettings 读回验证 content_contains qa_probe_r2</td>
+<td>未命中（failed）</td>
+<td>读回未命中是<strong>写入失败的必然结果</strong>，非读接口过滤</td>
+</tr>
+<tr>
+<td>tc_156</td>
+<td>空值覆写恢复清理 teardown</td>
+<td>400（value 必填校验拦截）</td>
+<td>恢复返回 400 系框架校验；因写入从未成功，<strong>无探针残留</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：探针无残留、环境无污染；f_001 定性收敛为"<strong>无鉴权可达 + 既有键覆盖风险</strong>"——新建配置键能力被否定，任意写入风险排除，既有键覆盖风险交由代码审计评估。f_001 由 round1"部分证实（待真实配置节验证）"正式降级为"受限证实"，无需再进行环境写验证。</p>
+<hr>
+<h2>8. 跳过用例说明（round2 共 7 条，round3 已全部处置）</h2>
+<table>
+<thead>
+<tr>
+<th>类别</th>
+<th>用例</th>
+<th>数量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>missing_client_id</td>
+<td>tc_015、tc_021、tc_022、tc_028、tc_030</td>
+<td>5</td>
+<td>depends_on=login_flow 且无真实登录口令（client_id 为空），环境受限的可接受跳过；<strong>round3 已闭环</strong>：经 WS 注册取得真实 clientId 后重参数化执行（3 成功 / 2 因版本 B 路由缺失 404，见第 5.4 节）</td>
+</tr>
+<tr>
+<td>safety_hold</td>
+<td>tc_059、tc_060</td>
+<td>2</td>
+<td><strong>有意控制，非缺陷、非用例误标</strong>：runner 安全策略将 setAppsetting 写操作限定为仅放行批准探针键 WorkflowProbe:qa_probe_r2；受控写入已由 tc_154~tc_156 探针三联覆盖</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2>9. 改进建议</h2>
+<h3>9.1 安全整改优先级（f_002/f_003/f_ws_noverify 应最高优先）</h3>
+<ol>
+<li><strong>脱敏 + 鉴权（f_002，跨版本确认）</strong>：getAppsettings / getappsettings / loadServerConfig 三个端点增加鉴权或下线，响应按敏感键白名单脱敏。</li>
+<li><strong>鉴权 + 载荷校验（f_003，跨版本确认）</strong>：publishMessage 增加鉴权与来源校验，校验 jsonDataContent 合法性。</li>
+<li><strong>WS 登录整改（f_ws_noverify，round3 实证）</strong>：61001 增加凭证或预共享密钥；服务端校验 roomId 存在性与 ClientType 枚举合法域（100~123/200/201/210）；登录响应的 Key/AccountId 字段当前恒空，可承载服务端签发凭证。</li>
+<li><strong>口令轮换（立即执行）</strong>：轮换 3DbKziKi / admin / admin123456 / 000000 等已泄漏凭证（跨版本确认，两个部署版本均暴露）。</li>
+<li>f_001 写型配置接口增加鉴权，既有键覆盖风险转代码审计。</li>
+</ol>
+<h3>9.2 环境治理</h3>
+<ul>
+<li><strong>版本指纹管理</strong>：部署版本（构建号/commit）必须随环境公示，测试报告与缺陷清单绑定版本指纹；建议执行前自动探测路由快照并与上一轮比对，变更即告警。</li>
+<li><strong>变更通知机制</strong>：版本 A→B 变更发生在两轮测试之间且无通知，直接造成 34 条失败归因噪音；环境变更须提前知会测试方。</li>
+<li><strong>部署版本与 api.yaml/源码对齐</strong>：版本 B 与 api.yaml、本地源码均不完全一致（第三形态），建议明确部署产物与代码仓库/文档的对应关系。</li>
+<li><strong>压测脚本需与部署版本对齐</strong>：OPS_connect0826.py（0826 版）面向的 /api/dsc_fw/<em>、/api/dsc/</em> 路由在版本 B 全部 404（tc_r3_006/007/009/010/013）。压测/自动化脚本入库时须标注目标部署版本指纹，并在执行前做路由预检，版本错位即告警。</li>
+</ul>
+<h3>9.3 测试资产：按版本 B 重新基线化的 case_issues 清单（6 条）</h3>
+<p>仅当未来以版本 B 为基线执行时生效（当前环境版本不稳定，修改后重试无可比性，故 round2 未触发重试）：</p>
+<table>
+<thead>
+<tr>
+<th>用例 ID</th>
+<th>问题</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tc_062</td>
+<td>message_contains 为版本 A 简体文案「参数异常」，版本 B 返回「參數異常」</td>
+<td>改为繁体或简繁双兼容断言</td>
+</tr>
+<tr>
+<td>tc_066</td>
+<td>message_contains 含版本 A 文案「未找到客户端」，版本 B 返回「未找到客戶端」</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>tc_100</td>
+<td>message_contains「用户名或密码」，版本 B 返回「用户名或密碼錯誤」</td>
+<td>同上</td>
+</tr>
+<tr>
+<td>tc_130</td>
+<td>预期 [200,400] 未含版本 B 框架层 415</td>
+<td>以版本 B 为基线时预期改为 [200,400,415]</td>
+</tr>
+<tr>
+<td>tc_131</td>
+<td>message_contains「参数异常」过时，版本 B 返回「查询排台异常」（error=300000 语义一致）</td>
+<td>更新消息断言</td>
+</tr>
+<tr>
+<td>tc_001</td>
+<td>content_not_null 断言依赖环境数据态（r2 因 content=[] 失败）</td>
+<td>改为「content 字段存在且为 JSON」的结构断言，或将空列表视为有效响应</td>
+</tr>
+</tbody>
+</table>
+<h3>9.4 待环境补验清单</h3>
+<ul>
+<li><strong>f_008 dscm_fw 路由</strong>：tc_161/162 目标路由在版本 B 404，消息泄漏回归验证待 dscm_fw 路由恢复后补验（tc_158 新旁证已单独披露）。</li>
+<li><strong>login 链路 5 条（已闭环）</strong>：tc_015/021/022/028/030 已于 round3 经 WS 注册真实 clientId 重参数化执行完毕（tc_r3_008/011/012 passed、tc_r3_009/010 因版本 B 路由缺失 404，详见第 5.4 节），无需再以"真实登录口令"为前置条件。</li>
+<li><strong>dsc_fw/dsc 路由 5 条（round3 遗留）</strong>：tc_r3_006/007/009/010/013 的 404 待压测脚本与部署版本对齐（或路由恢复挂载）后补验。</li>
+</ul>
+<hr>
+<h2>附录</h2>
+<h3>附录 A：产物文件清单</h3>
+<table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>workflow/api_spec.json</td>
+<td>接口规格解析产物（272 端点/24 分组，api.yaml v1.0.0.0）</td>
+</tr>
+<tr>
+<td>workflow/review_notes.json</td>
+<td>代码审查产物（20 条 findings + 18 条 test_hints，基线为本地源码）</td>
+</tr>
+<tr>
+<td>workflow/test_cases.yaml</td>
+<td>用例设计（round2 优化后 162 条，10 分组）</td>
+</tr>
+<tr>
+<td>workflow/case_generation_meta.json</td>
+<td>用例设计与追溯元数据（含 round2_optimization 四类优化记录）</td>
+</tr>
+<tr>
+<td>workflow/test_results.json</td>
+<td>round2 执行结果（110/45/7，含每条用例请求/响应/断言明细）</td>
+</tr>
+<tr>
+<td>workflow/test_results_r1.json</td>
+<td>round1 执行结果留档（112/5/14，版本 A）</td>
+</tr>
+<tr>
+<td>workflow/analysis_verdict.json</td>
+<td>round2 最终归因与缺陷清单（本报告第 4/6 章核心依据）</td>
+</tr>
+<tr>
+<td>workflow/analysis_verdict_r1.json</td>
+<td>round1 归因留档</td>
+</tr>
+<tr>
+<td>workflow/test_cases_r3.yaml</td>
+<td>round3 用例定义（13 条：ws_protocol / script_flow / read_coverage_r3）</td>
+</tr>
+<tr>
+<td>workflow/login_helper.py</td>
+<td>WS 登录助手（协议严格对齐压测脚本：61100/61001/61901，clientId 自生成）</td>
+</tr>
+<tr>
+<td>workflow/run_tests_r3.py</td>
+<td>round3 执行器（先 WS 注册取真实 clientId，再执行 HTTP 用例）</td>
+</tr>
+<tr>
+<td>workflow/test_results_r3.json</td>
+<td>round3 执行结果（6/7/0，含 ws_login_outcome 会话元信息）</td>
+</tr>
+<tr>
+<td>OPS_connect0826.py</td>
+<td>用户提供压测脚本（round3 协议与参数来源：WS 61100/61001/61901、roomId、ClientType=113）</td>
+</tr>
+<tr>
+<td>workflow/workflow_state.json</td>
+<td>工作流全过程状态（含服务下线与恢复时间线）</td>
+</tr>
+<tr>
+<td>report/接口测试报告_r1.md</td>
+<td>第 1 版报告留档（版本 A 口径）</td>
+</tr>
+<tr>
+<td>report/接口测试报告.md</td>
+<td>本报告（第 3 版，版本 B 口径，含 round3 补测）</td>
+</tr>
+<tr>
+<td>report/summary.json</td>
+<td>报告摘要（程序化消费，round2+round3 累计口径）</td>
+</tr>
+</tbody>
+</table>
+<h3>附录 B：失败用例归因明细表</h3>
+<p><strong>B1. round2 环境版本回归（34 条，既非产品缺陷亦非用例缺陷，不计入缺陷清单）</strong></p>
+<ul>
+<li>r1 通过用例确定性 404（21 条）：tc_004、tc_013、tc_023、tc_024、tc_025、tc_026、tc_045、tc_050、tc_051、tc_054、tc_055、tc_058、tc_072、tc_073、tc_075、tc_079、tc_103、tc_105、tc_111、tc_116、tc_117</li>
+<li>新增用例命中版本 B 缺失路由、无 r1 基线（10 条）：tc_132、tc_141、tc_142、tc_144、tc_145、tc_153、tc_159、tc_160、tc_161、tc_162</li>
+<li>行为变化（3 条）：tc_001（数据态 content=[]）、tc_130（415）、tc_157（模型校验 400）。tc_161/162（f_008 回归验证）同时标记 environment_limited</li>
+</ul>
+<p><strong>B2. 探针预期结果链（2 条，f_001 探针设计预期内的下游结果，不计缺陷）</strong></p>
+<ul>
+<li>tc_155（读回未命中，因写入失败）、tc_156（恢复清理 400，value 必填）</li>
+</ul>
+<p><strong>B3. 真实缺陷（5 条，跨版本确认/持续，保持 failed 进报告）</strong></p>
+<ul>
+<li>tc_096、tc_097、tc_099 → f_002<span class="badge badge-high">高危</span></li>
+<li>tc_010 → f_010<span class="badge badge-low">低危</span></li>
+<li>tc_083 → f_011_roomdata_empty<span class="badge badge-low">低危</span></li>
+</ul>
+<p><strong>B4. 待重新基线化（5 条，用例预期基于版本 A，需按版本 B 调整）</strong></p>
+<ul>
+<li>tc_062、tc_066、tc_100（简繁消息文案）、tc_130（415 预期）、tc_131（消息基线过时「参数异常」→「查询排台异常」）</li>
+</ul>
+<p>注：tc_130 在 B1（环境行为变化）与 B4（预期未含 415）双重归因，去重后总计 45 条；tc_001 数据态差异已登记 case_issues，随版本 B 基线化一并调整。</p>
+<p><strong>B5. round3 补测失败（7 条，2026-09-29，独立于 round2 的 45 条口径）</strong></p>
+<ul>
+<li>缺陷证据（2 条）：tc_r3_003（全零 GUID roomId 登录未被拒）、tc_r3_004（越界 ClientType=999 未被拒）→ f_ws_noverify（高危，round3 实证，见第 6.3 节）</li>
+<li>脚本-部署版本错位 404（5 条）：tc_r3_006、tc_r3_007、tc_r3_013（/api/dsc_fw/setLocalConfig、/api/dsc_fw/getSchedule）、tc_r3_009、tc_r3_010（/api/dsc/loadConfig、/api/dsc/loadRooms）——压测脚本（0826 版）面向的 dsc_fw/dsc 路由在版本 B 不存在，同第 4 章环境版本回归口径（非产品新缺陷、非用例缺陷）</li>
+</ul>
+<h3>附录 C：round1 vs round2 关键指标对照表</h3>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>round1（2026-09-24，版本 A）</th>
+<th>round2（2026-09-29，版本 B）</th>
+<th>变化</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>用例总数</td>
+<td>131</td>
+<td>162</td>
+<td>+31（重指 9 + 新增 22+3+6）</td>
+</tr>
+<tr>
+<td>通过</td>
+<td>112</td>
+<td>110</td>
+<td>-2</td>
+</tr>
+<tr>
+<td>失败</td>
+<td>5</td>
+<td>45</td>
+<td>+40（其中 34 条环境版本回归）</td>
+</tr>
+<tr>
+<td>跳过</td>
+<td>14（5 登录依赖 + 9 invalid_for_target）</td>
+<td>7（5 登录依赖 + 2 safety_hold）</td>
+<td>-7（9 条重指用例恢复执行，2 条转 safety_hold）</td>
+</tr>
+<tr>
+<td>通过率（原始）</td>
+<td>85.5%</td>
+<td>67.9%</td>
+<td>—</td>
+</tr>
+<tr>
+<td>通过率（剔除跳过）</td>
+<td>95.7%</td>
+<td>71.0%</td>
+<td>不可直接比较（被测对象变更）</td>
+</tr>
+<tr>
+<td>确认缺陷</td>
+<td>6（高危 3 / 中危 1 / 低危 2）</td>
+<td>7（高危 3 / 中危 1 / 低危 3）</td>
+<td>+1（f_008 纳入清单，environment_limited）；f_001 降级为受限证实</td>
+</tr>
+<tr>
+<td>缺陷口径</td>
+<td>版本 A 单轮</td>
+<td>跨版本（r0+r1+r2）</td>
+<td>f_002/f_003 升级为跨版本确认</td>
+</tr>
+<tr>
+<td>环境状态</td>
+<td>版本 A 在线</td>
+<td>版本 B 在线（09-28 曾下线）</td>
+<td>版本 A→B 变更为本轮主线</td>
+</tr>
+<tr>
+<td>执行耗时</td>
+<td>32601 ms</td>
+<td>54236 ms</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>注：round3（2026-09-29，部署版本 B，13 条独立补测，6/7/0，通过率 46.2%）不在本对照表口径内，详见第 5 章；含 round3 后累计缺陷 8 条（高危 4 / 中危 1 / 低危 3）。</p>
+<hr>
+<p><em>报告生成：report-generator，2026-09-29（第 3 版）。数据来源：workflow/test_results_r3.json（round=3）、workflow/test_cases_r3.yaml、workflow/login_helper.py、workflow/run_tests_r3.py、OPS_connect0826.py（round3 协议与参数来源）、workflow/analysis_verdict.json（round=2）、workflow/test_results.json（round=2）、workflow/test_results_r1.json、workflow/analysis_verdict_r1.json、workflow/case_generation_meta.json（round2_optimization）、workflow/review_notes.json、workflow/api_spec.json、workflow/workflow_state.json。本报告结论绑定部署版本 B（2026-09-29），round3 与 round2 同日同版本执行；第 1 版报告（版本 A 口径）见 report/接口测试报告_r1.md。</em></p>
+</main>
+</body>
+</html>
